@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+
+# build output (tools/build_deploy.sh)
+build/
+*.mpy
+
+# macOS / editors
+.DS_Store
+.vscode/
+*.swp
+
+# never commit a simulator config next to the solution (the grader would use it)
+src/sim_config.json
+src/simulation_config.json
