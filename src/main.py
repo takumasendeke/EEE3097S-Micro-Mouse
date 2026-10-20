@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v31 20-Oct 23:00"
+BUILD = "v32 20-Oct 23:30"
 
 try:
     import math
@@ -79,7 +79,8 @@ HW_TEST_STRAIGHT  = 0           # >0: just drive this many cells straight and st
 HW_TEST_TURN      = 0           # >0: in the start cell do this many 90 deg turns left, then right, print each
 HW_CALIBRATE      = 0           # 1 = calibration run, prints the values to paste below; 2 = also side-sensor offset
 HW_VMAX_R         = 412.0       # RIGHT wheel (diag 424; a touch lower = a little more right drive against the slight right drift)
-HW_SIDE_OFFSET    = 0.0         # mm the LEFT side ToF reads more than the right at the same distance (HW_CALIBRATE = 2)
+HW_KLAT           = 0.012       # rad of heading per mm off-centre: how hard it recentres (sim 0.008; higher = faster, too high weaves)
+HW_SIDE_OFFSET    = 12.0        # mm: + moves the centre line RIGHT (it hugged the left wall; ~half of this in mm)
 
 HW_STOP_EACH_CELL = 1           # 1 = stop at every cell centre and sense walls standing still
 HW_SIDE_GUARD     = 35.0        # mm side reflex (25 let it drift onto the prongs - back to 35)
@@ -301,6 +302,7 @@ def select_profile():
     global DEBUG, FRONT_STOP, FRONT_CENTER, TILT_LIM, KF_HEADING, STOP_EACH, WALL_K, GYRO_TRIM, TEST_STRAIGHT, SIDE_AUTO, SIDE_GUARD, TPMM_AUTO, FRONT_SNAP, GYRO_AUTO, ROOM_MAX_DOORS, VMAX_L, VMAX_R, SYSID
     global FRONT_REACT, FRONT_CHECK, TURN_LEAD, TURN_KLIN, TURN_WMIN, ALIGN_MOVE, ARCS, KEEP_IW, STOP_FIX
     global PIVOT_BACK, REVERSE_OUT, REV_HOME, SPIN_SHIFT, V_REVERSE, SENSE_STEPS, SKIP_SEEN, WALL_STOP, ZUPT_STOP
+    global KLAT
     global TURN_BB, TURN_PWM, TURN_COAST, KICK_L, KICK_R, LOOP_FIXED, SIDE_OFFSET, STOP_CREEP, STRAIGHTEN, EXPLORE_ALL, BRAKE_HOLD
     IS_SIM = on_simulator()
     if IS_SIM == 1:
@@ -350,6 +352,7 @@ def select_profile():
     VMAX_L = HW_VMAX
     VMAX_R = HW_VMAX_R if HW_VMAX_R > 0.0 else HW_VMAX
     SIDE_OFFSET = HW_SIDE_OFFSET
+    KLAT = HW_KLAT
     SYSID = HW_SYSID
     TPMM_AUTO = HW_TPMM_AUTO
     TAU = HW_TAU
