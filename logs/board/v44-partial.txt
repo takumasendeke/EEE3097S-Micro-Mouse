@@ -1,0 +1,117 @@
+S4 BUILD v44 21-Oct 05:30
+maze 6 x 6 side nom 60.0 start ToF L/C/R 47 530 8190 slot counts [1, 0, 1, 0, 0] gyro gain 1.0
+maze is on the RIGHT of the start heading
+start walls L F R 0 0 1 centred L/R 60.0 60.0
+cell 1 0 d 0 walls L F R 1 0 1 votes L 33 / 33 F 0 / 40 R 29 / 29 front 413 fix 7 th 0 kfh 0.0
+at 1 0 d 0 next 0 t 4.123
+cell 2 0 d 0 walls L F R 1 0 1 votes L 33 / 34 F 0 / 40 R 27 / 28 front 227 fix 4 th -2 kfh 0.0
+at 2 0 d 0 next 0 t 6.928
+cell 3 0 d 0 walls L F R 0 1 1 votes L 0 / 40 F 33 / 33 R 26 / 28 front 48 fix 5 th 4 kfh 0.0
+at 3 0 d 0 next 1 t 9.45
+align front 48 move 3 ms 1
+turn 85 err 0.0 ovs 0.0 ms 994 tries 1 coast 45
+latfix 10 mm
+BUMP - backing off
+seen 3 0 d 1 front 266 fix 0 th 108 kfh 0.0
+at 3 0 d 1 next 2 t 13.645
+align front 266 far - no move
+turn 71 err 2.5 ovs 0.0 ms 857 tries 1 coast 34
+latfix 0 mm
+pass 2 0
+pass 1 0
+seen 0 0 d 2 front 34 fix 33 th 175 kfh 0.0
+at 0 0 d 2 next 1 t 20.641
+align front 34 move -11 ms 535
+turn -93 err 0.0 ovs 8.5 ms 1380 tries 2 coast 60
+latfix 10 mm
+cell 0 1 d 1 walls L F R 1 0 0 votes L 34 / 37 F 0 / 34 R 0 / 40 front 479 fix 0 th 85 kfh 0.0
+at 0 1 d 1 next 1 t 26.029
+cell 0 2 d 1 walls L F R 1 0 1 votes L 30 / 33 F 0 / 37 R 31 / 31 front 456 fix -10 th 84 kfh 0.0
+at 0 2 d 1 next 1 t 28.754
+cell 0 3 d 1 walls L F R 1 0 0 votes L 35 / 37 F 0 / 40 R 0 / 40 front 365 fix 0 th 86 kfh 0.0
+at 0 3 d 1 next 1 t 31.588
+cell 0 4 d 1 walls L F R 1 0 0 votes L 30 / 34 F 0 / 40 R 0 / 40 front 195 fix 20 th 86 kfh 0.0
+at 0 4 d 1 next 0 t 34.333
+align front 195 far - no move
+turn -86 err -2.8 ovs 0.0 ms 862 tries 1 coast 46
+BUMP - backing off
+seen 0 4 d 0 front 200 fix 0 th 6 kfh 0.0
+at 0 4 d 0 next 1 t 38.216
+align front 200 far - no move
+turn 83 err 1.9 ovs 0.0 ms 898 tries 1 coast 36
+latfix 6 mm
+cell 0 5 d 1 walls L F R 1 1 1 votes L 32 / 32 F 34 / 35 R 29 / 31 front 63 fix 9 th 86 kfh 0.0
+at 0 5 d 1 next 3 t 41.795
+align front 63 move 18 ms 523
+turn -181 err -0.2 ovs 0.0 ms 1382 tries 1 coast 35
+latfix 13 mm
+pass 0 4
+seen 0 3 d 3 front 456 fix 0 th -98 kfh 0.0
+at 0 3 d 3 next 0 t 49.137
+align front 456 far - no move
+turn 98 err -1.0 ovs 1.0 ms 950 tries 1 coast 35
+cell 1 3 d 0 walls L F R 1 0 0 votes L 35 / 36 F 0 / 40 R 15 / 40 front 376 fix 0 th -4 kfh 0.0
+at 1 3 d 0 next 0 t 53.422
+cell 2 3 d 0 walls L F R 0 0 1 votes L 0 / 40 F 0 / 40 R 36 / 37 front 194 fix 21 th 3 kfh 0.0
+at 2 3 d 0 next 0 t 56.173
+cell 3 3 d 0 walls L F R 0 1 1 votes L 0 / 40 F 18 / 18 R 37 / 40 front 34 fix -3 th -5 kfh 0.0
+at 3 3 d 0 next 1 t 58.656
+align front 34 move -11 ms 524
+turn 86 err 0.2 ovs 0.0 ms 770 tries 1 coast 33
+latfix 10 mm
+cell 3 4 d 1 walls L F R 1 0 1 votes L 11 / 11 F 0 / 40 R 31 / 39 front 210 fix 12 th 85 kfh 0.0
+at 3 4 d 1 next 1 t 63.902
+cell 3 5 d 1 walls L F R 1 0 0 votes L 16 / 16 F 3 / 40 R 17 / 40 front 158 fix 0 th 104 kfh 0.0
+at 3 5 d 1 next 0 t 66.96
+align front 158 far - no move
+turn -104 err 0.7 ovs 0.7 ms 1461 tries 1 coast 30
+FRONT CHECK: wall ahead after turn, next 3
+align front 158 far - no move
+turn -89 err -2.0 ovs 8.8 ms 1360 tries 2 coast 50
+latfix 14 mm
+pass 3 4
+seen 3 3 d 3 front 40 fix 11 th -95 kfh 0.0
+at 3 3 d 3 next 2 t 75.379
+align front 40 move -5 ms 1
+turn -84 err -0.1 ovs 0.0 ms 1279 tries 1 coast 44
+latfix -10 mm
+seen 2 3 d 2 front 407 fix 8 th -188 kfh 0.0
+at 2 3 d 2 next 1 t 79.795
+align front 407 far - no move
+turn -81 err -1.1 ovs 0.0 ms 1136 tries 1 coast 34
+cell 2 4 d 1 walls L F R 1 1 1 votes L 24 / 24 F 20 / 20 R 33 / 35 front 42 fix -6 th -275 kfh 0.0
+at 2 4 d 1 next 3 t 84.092
+align front 42 move -3 ms 1
+turn -182 err -0.2 ovs 0.0 ms 1497 tries 1 coast 30
+latfix 4 mm
+seen 2 3 d 3 front 43 fix 0 th -452 kfh 0.0
+at 2 3 d 3 next 2 t 90.091
+align front 43 move -2 ms 4
+turn -87 err -1.9 ovs 5.0 ms 1175 tries 2 coast 47
+latfix -2 mm
+seen 1 3 d 2 front 216 fix 8 th -537 kfh 0.0
+at 1 3 d 2 next 3 t 94.307
+align front 216 far - no move
+turn 87 err 2.1 ovs 7.3 ms 1254 tries 2 coast 58
+cell 1 2 d 3 walls L F R 0 1 1 votes L 0 / 40 F 36 / 36 R 35 / 39 front 48 fix 8 th -452 kfh 0.0
+at 1 2 d 3 next 0 t 98.532
+align front 48 move 3 ms 1
+turn 92 err 2.6 ovs 5.5 ms 1415 tries 3 coast 60
+latfix 7 mm
+cell 2 2 d 0 walls L F R 1 0 0 votes L 20 / 21 F 10 / 40 R 0 / 40 front 124 fix 0 th -349 kfh 0.0
+at 2 2 d 0 next 0 t 103.768
+cell 3 2 d 0 walls L F R 1 1 0 votes L 18 / 18 F 31 / 38 R 0 / 40 front 72 fix -40 th -342 kfh 0.0
+at 3 2 d 0 next 3 t 107.056
+align front 72 move 27 ms 814
+turn -108 err -0.9 ovs 0.0 ms 1705 tries 2 coast 37
+latfix 10 mm
+FRONT CHECK: wall ahead after turn, next 2
+align front 44 move 0 ms 224
+turn -90 err -0.7 ovs 0.0 ms 1427 tries 1 coast 32
+latfix 5 mm
+FRONT CHECK: wall ahead after turn, next -1
+no room found
+return None
+align front 50 move 1 ms 198
+turn 179 err 1.3 ovs 6.2 ms 1773 tries 2 coast 50
+done t 121.386
