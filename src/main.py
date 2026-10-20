@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v42 21-Oct 04:30"
+BUILD = "v43 21-Oct 05:00"
 
 try:
     import math
@@ -121,12 +121,12 @@ HW_BRAKE_HOLD     = 0           # 1 = gyro-steered roll-out at stops (tested wor
 HW_STRAIGHTEN     = 0.0         # deg: 0 = off (correction spins after stops looked like wiggling)
 HW_EXPLORE_ALL    = 1           # 1 = keep exploring after the room is found, until the whole maze is mapped
 HW_EXPLORE_TMAX   = 200.0       # s: ... but stop exploring after this long once the room is known
-HW_STOP_EXTRA     = 15.0        # mm: end every stop this far PAST the cell centre (it stopped short of the square); a wall ahead still stops it by ToF
+HW_STOP_EXTRA     = 8.0         # mm past the cell centre at every stop (15 went a bit too far with no wall ahead)
 HW_WHEEL_PI       = 1           # 1 = each wheel on its OWN encoder speed loop (diag.py's controller: straight, square stops)
 HW_WHEEL_KP       = 0.12        # PWM per mm/s of wheel speed error (diag.py)
 HW_WHEEL_KI       = 0.8         # PWM per mm of accumulated wheel speed error (diag.py)
 HW_LOOP_FIXED     = 1           # 1 = fixed 10 ms loop period (wait only the rest of the period)
-HW_FRONT_CENTER   = 48.0        # mm front reading at a cell centre: v40 stops median 51, v35 ~48, tof_check ~50 (38 pushed the nose into walls)
+HW_FRONT_CENTER   = 42.0        # mm front reading at a cell centre (48 stopped too far from a wall ahead)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
@@ -1261,7 +1261,7 @@ class Mouse:
         if f < 130.0:
             # a wall this close can only be this cell's front wall. Neither the
             # front ToF nor the encoders is trusted alone: use their average
-            a = 0.5 * ((c + FRONT_CENTER - f) + self.along(d))
+            a = 0.7 * (c + FRONT_CENTER - f) + 0.3 * self.along(d)   # mostly the front ToF
             self.X += DX[d] * (a - self.along(d))
             self.Y += DY[d] * (a - self.along(d))
         elif not (self.fmed_ok and STOP_FIX):     # (stop_fix already used this reading)
