@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v43 21-Oct 05:00"
+BUILD = "v44 21-Oct 05:30"
 
 try:
     import math
@@ -126,7 +126,7 @@ HW_WHEEL_PI       = 1           # 1 = each wheel on its OWN encoder speed loop (
 HW_WHEEL_KP       = 0.12        # PWM per mm/s of wheel speed error (diag.py)
 HW_WHEEL_KI       = 0.8         # PWM per mm of accumulated wheel speed error (diag.py)
 HW_LOOP_FIXED     = 1           # 1 = fixed 10 ms loop period (wait only the rest of the period)
-HW_FRONT_CENTER   = 42.0        # mm front reading at a cell centre (48 stopped too far from a wall ahead)
+HW_FRONT_CENTER   = 45.0        # mm front reading at a cell centre (42 overdid the correction from 48)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
@@ -296,6 +296,7 @@ def wrap180(a):
 
 
 LOGBUF = None                   # board: every log line is also kept here and saved to runlog.txt
+LOGN = 0                        # lines since the last save
 
 
 def log(*args):
@@ -307,6 +308,11 @@ def log(*args):
             LOGBUF.append(" ".join([str(a) for a in args])[:110])
             if len(LOGBUF) > 160:
                 del LOGBUF[15]
+            global LOGN
+            LOGN += 1
+            if LOGN >= 25 or "BUMP" in LOGBUF[-1] or "STALL" in LOGBUF[-1]:
+                LOGN = 0
+                save_log()              # a run switched off mid-way still leaves a log
 
 
 # Board: write the kept log lines to runlog.txt on the mouse's drive (plug in
@@ -320,7 +326,7 @@ def save_log():
             f.write(line)
             f.write("\n")
         f.close()
-        print("log saved to runlog.txt (", len(LOGBUF), "lines )")
+        pass
     except Exception as e:
         print("could not save runlog.txt:", e)
 
@@ -783,6 +789,7 @@ class Mouse:
         self.vlw = 0.0          # filtered speed of each wheel, mm/s
         self.vrw = 0.0
         self.ilw = 0.0          # each wheel's speed-loop integrator (PWM)
+        self.stall = 0          # steps driven with the wheels hardly turning
         self.irw = 0.0
         self.kfh = 0.0          # degrees the side walls rotated the heading estimate (logged per cell)
         self.pl_last = 0        # last PWM sent to each motor
@@ -1020,6 +1027,16 @@ class Mouse:
             er = cr - self.vrw
             self.ilw = clamp(self.ilw + HW_WHEEL_KI * el * dt, -15.0, 15.0)
             self.irw = clamp(self.irw + HW_WHEEL_KI * er * dt, -15.0, 15.0)
+            # stall detector: told to drive but the wheels hardly turn for
+            # ~0.4 s = it hit something; treat it like a bump (stop, back off)
+            if fabs(v) >= 50.0 and fabs(self.v) < 15.0:
+                self.stall += 1
+                if self.stall > 40:
+                    self.stall = 0
+                    self.bump = 1
+                    log("STALL - wheels blocked")
+            else:
+                self.stall = 0
             pl = int(clamp(wheel_ff(cl, DB_L, VMAX_L) + HW_WHEEL_KP * el + self.ilw, -100.0, 100.0))
             pr = int(clamp(wheel_ff(cr, DB_R, VMAX_R) + HW_WHEEL_KP * er + self.irw, -100.0, 100.0))
             uct_mouse.set_motors(pl, pr)
@@ -1261,7 +1278,7 @@ class Mouse:
         if f < 130.0:
             # a wall this close can only be this cell's front wall. Neither the
             # front ToF nor the encoders is trusted alone: use their average
-            a = 0.7 * (c + FRONT_CENTER - f) + 0.3 * self.along(d)   # mostly the front ToF
+            a = 0.6 * (c + FRONT_CENTER - f) + 0.4 * self.along(d)   # mostly the front ToF
             self.X += DX[d] * (a - self.along(d))
             self.Y += DY[d] * (a - self.along(d))
         elif not (self.fmed_ok and STOP_FIX):     # (stop_fix already used this reading)
