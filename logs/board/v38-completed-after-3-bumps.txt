@@ -1,0 +1,94 @@
+S4 BUILD v38 21-Oct 02:30
+maze 6 x 6 side nom 60.0 start ToF L/C/R 8190 216 37 slot counts [0, 0, 1, 0, 1] gyro gain 1.0
+start walls L F R 1 0 1 centred L/R 53.5 47.5
+maze is on the LEFT of the start heading
+cell 1 0 d 0 walls L F R 0 1 1 votes L 0 / 29 F 16 / 16 R 17 / 21 front 52 fix -6 th 2 kfh 0.0
+at 1 0 d 0 next 1 t 3.38
+align front 52 move 1 ms 1
+turn 87 err -1.2 ovs 1.2 ms 841 tries 1 coast 46
+cell 1 1 d 1 walls L F R 1 0 1 votes L 26 / 26 F 0 / 30 R 27 / 27 front 217 fix 7 th 91 kfh 0.0
+at 1 1 d 1 next 1 t 7.095
+cell 1 2 d 1 walls L F R 0 1 1 votes L 0 / 30 F 10 / 12 R 20 / 21 front 58 fix -9 th 90 kfh 0.0
+at 1 2 d 1 next 2 t 9.174
+align front 58 move 7 ms 1
+turn 89 err -0.7 ovs 0.7 ms 846 tries 1 coast 47
+cell 0 2 d 2 walls L F R 0 1 0 votes L 0 / 30 F 22 / 25 R 0 / 30 front 69 fix 0 th 182 kfh 0.0
+at 0 2 d 2 next 3 t 12.55
+align front 69 move 18 ms 526
+turn 89 err -2.2 ovs 2.2 ms 850 tries 1 coast 49
+cell 0 1 d 3 walls L F R 1 1 1 votes L 17 / 17 F 19 / 21 R 26 / 30 front 50 fix 20 th 267 kfh 0.0
+at 0 1 d 3 next 1 t 16.43
+align front 50 move -1 ms 1
+turn -179 err -2.8 ovs 0.0 ms 4104 tries 1 coast 38
+latfix 15 mm
+pass 0 2
+cell 0 3 d 1 walls L F R 1 1 0 votes L 18 / 18 F 18 / 19 R 0 / 30 front 50 fix 22 th 90 kfh 0.0
+at 0 3 d 1 next 0 t 24.865
+align front 50 move -1 ms 1
+turn -90 err -0.1 ovs 0.0 ms 962 tries 1 coast 31
+cell 1 3 d 0 walls L F R 1 0 1 votes L 18 / 18 F 0 / 30 R 25 / 29 front 216 fix 8 th 8 kfh 0.0
+at 1 3 d 0 next 0 t 28.724
+cell 2 3 d 0 walls L F R 1 1 0 votes L 18 / 18 F 18 / 18 R 0 / 30 front 48 fix -11 th 4 kfh 0.0
+at 2 3 d 0 next 3 t 30.827
+align front 48 move -3 ms 1
+turn -94 err -0.6 ovs 0.0 ms 802 tries 1 coast 27
+cell 2 2 d 3 walls L F R 1 0 1 votes L 22 / 22 F 0 / 30 R 22 / 26 front 226 fix 2 th -83 kfh 0.0
+at 2 2 d 3 next 3 t 34.488
+cell 2 1 d 3 walls L F R 0 1 1 votes L 0 / 30 F 12 / 12 R 21 / 29 front 37 fix -4 th -91 kfh 0.0
+at 2 1 d 3 next 0 t 36.632
+align front 37 move -14 ms 480
+turn 92 err -0.5 ovs 0.5 ms 912 tries 1 coast 28
+cell 3 1 d 0 walls L F R 1 0 0 votes L 13 / 13 F 0 / 28 R 0 / 30 front 387 fix 0 th 22 kfh 0.0
+at 3 1 d 0 next 0 t 41.041
+HEADING LOST - stop and straighten
+turn -35 err 1.8 ovs 7.8 ms 1249 tries 3 coast 57
+cell 4 1 d 0 walls L F R 0 0 0 votes L 1 / 30 F 4 / 30 R 0 / 30 front 129 fix -66 th -1 kfh 0.0
+at 4 1 d 0 next 0 t 45.08
+BUMP - backing off
+seen 4 1 d 0 front 44 fix -23 th -7 kfh 0.0
+at 4 1 d 0 next 3 t 47.655
+align front 44 move -7 ms 0
+turn -82 err 1.5 ovs 1.5 ms 1390 tries 1 coast 50
+cell 4 0 d 3 walls L F R 0 1 0 votes L 0 / 30 F 18 / 18 R 0 / 30 front 42 fix -13 th -88 kfh 0.0
+at 4 0 d 3 next 0 t 51.884
+align front 42 move -9 ms 526
+turn 91 err 0.7 ovs 0.0 ms 856 tries 1 coast 44
+BUMP - backing off
+seen 4 0 d 0 front 241 fix 0 th 9 kfh 0.0
+at 4 0 d 0 next 2 t 55.743
+align front 241 move -11 ms 520
+turn 180 err 0.6 ovs 0.0 ms 1278 tries 1 coast 39
+ROOM found at 3 0 doors 2
+cell 3 0 d 2 walls L F R 1 1 0 votes L 12 / 12 F 22 / 23 R 14 / 30 front 50 fix -7 th 179 kfh 0.0
+at 3 0 d 2 next 1 t 60.696
+align front 50 move -1 ms 1
+turn -89 err -0.3 ovs 0.0 ms 3600 tries 1 coast 39
+FRONT CHECK: wall ahead after turn, next 0
+align front 50 move -1 ms 1
+turn -90 err -1.2 ovs 4.3 ms 1822 tries 2 coast 49
+latfix 5 mm
+seen 4 0 d 0 front 235 fix 0 th 0 kfh 0.0
+at 4 0 d 0 next 1 t 69.097
+align front 235 move -17 ms 523
+turn 92 err 0.9 ovs 5.8 ms 1249 tries 2 coast 55
+seen 4 1 d 1 front 150 fix 0 th 91 kfh 0.0
+at 4 1 d 1 next 1 t 73.516
+BUMP - backing off
+seen 4 1 d 1 front 228 fix 0 th 87 kfh 0.0
+at 4 1 d 1 next -1 t 75.545
+PIROUETTE at 4 1
+turn 90 err 2.8 ovs 0.0 ms 753 tries 1 coast 45
+spin spot walls 3 d 2
+turn -360 err 2.3 ovs 2.3 ms 2182 tries 1 coast 43
+return [2, 2, 1, 1, 2, 2, 3, 0, 3, 3, 2]
+HEADING LOST - stop and straighten
+return [2, 1, 1, 2, 2, 3, 0, 3, 3, 2]
+HEADING LOST - stop and straighten
+return [2, 1, 1, 2, 2, 3, 0, 3, 3, 2]
+HEADING LOST - stop and straighten
+return [2, 1, 1, 2, 2, 3, 0, 3, 3, 2]
+HEADING LOST - stop and straighten
+align front 48 move -3 ms 365
+turn 141 err 0.3 ovs 0.0 ms 1745 tries 1 coast 37
+sprint []
+done t 90.939
