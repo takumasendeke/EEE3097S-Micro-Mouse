@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v30 20-Oct 22:30"
+BUILD = "v31 20-Oct 23:00"
 
 try:
     import math
@@ -82,7 +82,7 @@ HW_VMAX_R         = 412.0       # RIGHT wheel (diag 424; a touch lower = a littl
 HW_SIDE_OFFSET    = 0.0         # mm the LEFT side ToF reads more than the right at the same distance (HW_CALIBRATE = 2)
 
 HW_STOP_EACH_CELL = 1           # 1 = stop at every cell centre and sense walls standing still
-HW_SIDE_GUARD     = 25.0        # mm side reflex (tof_check: centred readings dip to 21-23 from noise; 35 gave random steering kicks)
+HW_SIDE_GUARD     = 35.0        # mm side reflex (25 let it drift onto the prongs - back to 35)
 HW_FRONT_STOP     = 35.0        # mm: front reflex - blocked below this + speed * HW_FRONT_REACT (was 28: hit walls)
 HW_FRONT_REACT    = 0.15        # s: ToF latency + braking time, so faster = stop earlier
 HW_FRONT_CHECK    = 20          # steps: after each explore turn, look ahead standing still before driving
@@ -119,7 +119,7 @@ HW_STRAIGHTEN     = 0.0         # deg: 0 = off (correction spins after stops loo
 HW_EXPLORE_ALL    = 1           # 1 = keep exploring after the room is found, until the whole maze is mapped
 HW_EXPLORE_TMAX   = 200.0       # s: ... but stop exploring after this long once the room is known
 HW_LOOP_FIXED     = 1           # 1 = fixed 10 ms loop period (wait only the rest of the period)
-HW_FRONT_CENTER   = 48.0        # mm front reading with the axle on a cell centre (tof_check 20 Oct: median ~50; 34 stopped ~15 mm too far forward)
+HW_FRONT_CENTER   = 34.0        # mm front reading at a cell centre (48 made it overdrive and crash - back to 34)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
@@ -1189,8 +1189,9 @@ class Mouse:
         mv = c - self.along(d)
         if fabs(mv) > 60.0 and f >= 130.0:
             log("align skipped, move", int(mv))     # pose estimate is off: do not drive blind
-        elif fabs(mv) > 5.0:
-            self.move_to(d, c)
+        elif fabs(mv) > 8.0:
+            # gentle: never more than 25 mm (big line-up moves pushed it onto the prongs)
+            self.move_to(d, self.along(d) + clamp(mv, -25.0, 25.0))
         log("align front", f, "move", int(mv), "ms", self.now() - t0)
 
     # Gyro bias from samples taken with BOTH wheels dead still (a turn that
