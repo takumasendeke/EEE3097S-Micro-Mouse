@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v27 20-Oct 21:00"
+BUILD = "v28 20-Oct 21:30"
 
 try:
     import math
@@ -143,7 +143,7 @@ HW_KI_W           = 0.3         # was 0.5: with the big right dead-band it over-
 HW_WAIT_BUTTON    = 1           # 1 = press SW1 to start (board only)
 HW_DEBUG          = 1           # 1 = print sensing/decisions (run tethered via mpremote)
 HW_TPMM_AUTO      = 0           # 1 = measure encoder ticks/mm at start (spin vs gyro)
-HW_KF_HEADING     = 1           # 1 = walls also correct heading (needed: stops slip the gyro cannot see)
+HW_KF_HEADING     = 0           # 0 = heading from the gyro only (diag: gyro-only straight was perfect; walls caused bends)
 HW_SYSID          = 0           # 1 = measure dead-bands/ticks per mm with a start spin
 
 # ---------------- runtime values (simulator defaults) --------------------
@@ -1245,7 +1245,7 @@ class Mouse:
             # backwards the side sensors trail the wheels, so the forward
             # gains over-correct (wobble): half the lateral pull, softer heading loop
             pref = clamp(0.5 * KLAT * lat, -0.5 * PSI_MAX, 0.5 * PSI_MAX)     # backwards: steer the other way
-            w = clamp(0.6 * KPSI * (pref - psi) / D2R, -60.0, 60.0)
+            w = clamp(KPSI * (pref - psi) / D2R, -80.0, 80.0)
             if SIDE_GUARD > 0.0:
                 # side reflex, reversed: backing away from a close wall needs
                 # the nose turned TOWARDS it
