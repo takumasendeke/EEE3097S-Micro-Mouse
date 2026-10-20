@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v45 21-Oct 06:00"
+BUILD = "v46 21-Oct 12:00"
 
 try:
     import math
@@ -71,7 +71,7 @@ HW_MAZE_ROWS      = 0           # 0 = ask uct_mouse.get_maze_dimensions()
 HW_MAZE_COLS      = 0           # (board uses a square grid of the larger side)
 HW_ARENA_SIDE     = 0           # 0 = detect from the first side opening (+1 maze on the LEFT of the start heading, -1 RIGHT)
 HW_SIDE_X         = 50.0        # mm side ToF ahead of the axle
-HW_FRONT_OFF      = 57.0        # mm front ToF ahead of the axle (front of mouse is 60 mm ahead, measured)
+HW_FRONT_OFF      = 57.0        # mm front ToF ahead of the axle (info only: the code uses CELL/2 - HW_FRONT_CENTER)
 HW_WALL_K         = 0.0         # deg/s of steering per mm off-centre, straight from side ToF
 HW_GYRO_TRIM      = 0.0         # deg/s added to gyro bias. Drifts RIGHT -> make it NEGATIVE (see straight test)
 
@@ -86,9 +86,9 @@ HW_SIDE_OFFSET    = 9.0         # mm: + moves the centre line RIGHT (12 + latfix
 
 HW_STOP_EACH_CELL = 1           # 1 = stop at every cell centre and sense walls standing still
 HW_SIDE_GUARD     = 35.0        # mm side reflex (25 let it drift onto the prongs - back to 35)
-HW_FRONT_STOP     = 35.0        # mm: front reflex - blocked below this + speed * HW_FRONT_REACT (was 28: hit walls)
+HW_FRONT_STOP     = 30.0        # mm: front reflex - blocked below this + speed * HW_FRONT_REACT (centre reads 37 now)
 HW_FRONT_REACT    = 0.15        # s: ToF latency + braking time, so faster = stop earlier
-HW_FRONT_CHECK    = 20          # steps: after each explore turn, look ahead standing still before driving
+HW_FRONT_CHECK    = 30          # steps: after each explore turn, look ahead standing still (also feeds latfix)
 HW_TURN_LEAD      = 0.06        # s: brake on the predicted stopping heading (motor lag), stops overshoot
 HW_TURN_KLIN      = 10.0        # 1/s: gentle linear approach for the last ~20 deg (no chatter at the end)
 HW_TURN_WMIN      = 20.0        # deg/s: never command less while outside tolerance (beats stiction)
@@ -105,7 +105,7 @@ HW_SPIN_SHIFT     = 8.0         # mm step off a wall before a risky spin (15 lef
 HW_V_REVERSE      = 100.0       # mm/s top speed backwards (slow: more side-wall fixes per mm)
 HW_SENSE_STEPS    = 40          # 10 ms steps of standing-still wall sensing in a NEW cell (more data)
 HW_SKIP_SEEN      = 1           # 1 = cells already mapped: no wall sensing, just a quick front fix
-HW_WALL_STOP      = 1           # 1 = stopping at a cell with a wall ahead, brake on the front ToF too
+HW_WALL_STOP      = 0           # 0 = stop on the position estimate (the near front wall corrects it while approaching)
 HW_ZUPT_STOP      = 1           # 1 = re-estimate the gyro bias while standing still (both wheels dead still)
 # Flight log (real mouse): spinning on the spot the wheels STALL at PWM 64-70 and
 # spin fast at 75; from rest the right wheel starts later than the left.
@@ -121,12 +121,19 @@ HW_BRAKE_HOLD     = 0           # 1 = gyro-steered roll-out at stops (tested wor
 HW_STRAIGHTEN     = 0.0         # deg: 0 = off (correction spins after stops looked like wiggling)
 HW_EXPLORE_ALL    = 1           # 1 = keep exploring after the room is found, until the whole maze is mapped
 HW_EXPLORE_TMAX   = 200.0       # s: ... but stop exploring after this long once the room is known
-HW_STOP_EXTRA     = 8.0         # mm past the cell centre at every stop (15 went a bit too far with no wall ahead)
+HW_STOP_EXTRA     = 0.0         # mm past the cell centre at every stop (8 was making up for the bad far-wall fixes)
 HW_WHEEL_PI       = 1           # 1 = each wheel on its OWN encoder speed loop (diag.py's controller: straight, square stops)
 HW_WHEEL_KP       = 0.12        # PWM per mm/s of wheel speed error (diag.py)
 HW_WHEEL_KI       = 0.8         # PWM per mm of accumulated wheel speed error (diag.py)
 HW_LOOP_FIXED     = 1           # 1 = fixed 10 ms loop period (wait only the rest of the period)
-HW_FRONT_CENTER   = 43.5        # mm front reading at a cell centre: midway between v43 (42) and v44 (45)
+HW_FRONT_CENTER   = 37.0        # mm front reading with the axle on a cell centre (MEASURED: 155 readings, median 37)
+HW_FRONT_NEAR     = 120.0       # mm: front readings set the position only below this (longer ones read 15-30 short)
+HW_FRONT_GAIN     = 0.12        # share of each near front reading's error applied while driving towards the wall
+HW_POS_MODEL      = 1           # 1 = keep an along/sideways uncertainty; every position fix is weighted by it
+HW_EDGE_FIX       = 1           # 1 = a side wall ending/starting (cell boundary) fixes the along position on the move
+HW_EDGE_OFF       = 8.0         # mm: start value - a wall END is seen this far past the boundary, a START this far before (learned: "p" in edge lines)
+HW_TOF_LAG        = 0.02        # s: age of a ToF reading (the mouse has moved speed x lag since)
+HW_ALIGN_TOL      = 4.0         # mm: before a turn, move to the cell centre if further off than this
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
@@ -237,6 +244,9 @@ BRAKE_HOLD = 0
 EXPLORE_ALL = 0
 SIDE_OFFSET = 0.0
 FRONT_CENTER = 35.0             # sim: 100 - FRONT_OFF
+FRONT_NEAR = 2000.0
+POS_MODEL = 0                   # board: weighted along/sideways fixes (sim keeps its own filter)
+EDGE_FIX = 0                    # board: side-wall edge fixes
 TILT_LIM = 0.0
 SIDE_GUARD = 0.0                # mm: steer away below this (board only; sim never needs it)
 DECIDE_AHEAD = 60.0             # decide a cell this far before its centre
@@ -352,7 +362,7 @@ def select_profile():
     global DEBUG, FRONT_STOP, FRONT_CENTER, TILT_LIM, KF_HEADING, STOP_EACH, WALL_K, GYRO_TRIM, TEST_STRAIGHT, SIDE_AUTO, SIDE_GUARD, TPMM_AUTO, FRONT_SNAP, GYRO_AUTO, ROOM_MAX_DOORS, VMAX_L, VMAX_R, SYSID
     global FRONT_REACT, FRONT_CHECK, TURN_LEAD, TURN_KLIN, TURN_WMIN, ALIGN_MOVE, ARCS, KEEP_IW, STOP_FIX
     global PIVOT_BACK, REVERSE_OUT, REV_HOME, SPIN_SHIFT, V_REVERSE, SENSE_STEPS, SKIP_SEEN, WALL_STOP, ZUPT_STOP
-    global KLAT, PSI_MAX, WHEEL_PI, STOP_EXTRA
+    global KLAT, PSI_MAX, WHEEL_PI, STOP_EXTRA, FRONT_NEAR, POS_MODEL, EDGE_FIX
     global TURN_BB, TURN_PWM, TURN_COAST, KICK_L, KICK_R, LOOP_FIXED, SIDE_OFFSET, STOP_CREEP, STRAIGHTEN, EXPLORE_ALL, BRAKE_HOLD
     IS_SIM = on_simulator()
     if IS_SIM == 1:
@@ -416,7 +426,10 @@ def select_profile():
         SIDE = 1
         SIDE_AUTO = 1
     SIDE_X = HW_SIDE_X
-    FRONT_OFF = HW_FRONT_OFF
+    FRONT_OFF = CELL / 2.0 - HW_FRONT_CENTER    # effective: reading + this = distance to the wall
+    FRONT_NEAR = HW_FRONT_NEAR
+    POS_MODEL = HW_POS_MODEL
+    EDGE_FIX = HW_EDGE_FIX
     SIDE_WALL = HW_SIDE_WALL
     SIDE_GUARD = HW_SIDE_GUARD
     FRONT_STOP = HW_FRONT_STOP
@@ -798,6 +811,22 @@ class Mouse:
         self.tcoast = TURN_COAST
         self.sLm = 0            # median side wall readings of the last stationary look (0 = none)
         self.sRm = 0
+        self.sLn = 0            # ... and how many readings each median is from
+        self.sRn = 0
+        self.fvals = []         # front readings of the last stationary look
+        self.sa0 = 10.0         # along-track uncertainty (mm, 1 sigma) at the last position fix
+        self.odo = 0.0          # mm driven since that fix (the uncertainty grows with it)
+        self.ecls = [0, 0]      # side edge tracker (L, R): class 0 none, 1 wall, 2 open
+        self.en = [0, 0]        # valid readings in a row of that class
+        self.ea = [0.0, 0.0]    # along-position of the last one
+        self.ec = [0, 0]        # readings of the other class since (a change being confirmed)
+        self.eca = [0.0, 0.0]   # along-position of the first of those
+        self.epend = []         # edge fixes waiting for the new cell's walls to confirm them
+        self.ep = HW_EDGE_OFF   # edge offset in use (learned from the edges seen)
+        self.exw = 0.0          # average sensor position minus boundary: wall ends ...
+        self.exo = 0.0          # ... and wall starts
+        self.enw = 0
+        self.eno = 0
 
     # ---- sensing --------------------------------------------------------
     def now(self):
@@ -826,6 +855,7 @@ class Mouse:
         self.er = r
         ds = 0.5 * (dl + dr)
         self.ds = ds
+        self.odo += ds if ds > 0.0 else -ds
         self.v += 0.4 * (ds / dt - self.v)
         self.vlw += 0.35 * (dl / dt - self.vlw)     # each wheel's own speed (wheel-PI mode)
         self.vrw += 0.35 * (dr / dt - self.vrw)
@@ -957,7 +987,7 @@ class Mouse:
         # A wall at the front edge of the cell the move stops in is expected:
         # the speed profile already stops for it, so only the last-resort
         # distance applies (the speed term made it brake 20-35 mm short).
-        if aw > self.a_goal + CELL / 2.0 - 40.0 and self.fC >= FRONT_STOP + FRONT_REACT * v:
+        if aw > self.a_goal + CELL / 2.0 - 40.0 and self.fC >= FRONT_STOP:
             return 0
         # Walls stand only on cell boundaries, and a boundary the map already
         # knows is open cannot be one: such short readings are the ToF's
@@ -1255,6 +1285,9 @@ class Mouse:
     # the along-track position from it, and make one smooth encoder move to
     # the cell centre.
     def align_move(self):
+        if POS_MODEL:
+            self.align_pos()
+            return
         d = self.d
         t0 = self.now()
         f = 8190
@@ -1298,6 +1331,46 @@ class Mouse:
             self.move_to(d, self.along(d) + clamp(mv, -25.0, 25.0))
         log("align front", f, "move", int(mv), "ms", self.now() - t0)
 
+    # Board, before every spin: put the axle on the cell centre along the
+    # current axis. Spinning, the front corners sweep ~86 mm round the axle
+    # and the walls are ~94 mm away, so it must be within a few mm. A wall
+    # close ahead is measured (up to 25 readings standing still, median) and
+    # weighted against the estimate; without one the estimate (encoders +
+    # edge fixes) is all there is. Then one short encoder move to the centre.
+    def align_pos(self):
+        d = self.d
+        t0 = self.now()
+        vals = list(self.fvals) if self.fmed_ok else []
+        near = 0
+        for v in vals:
+            if v < FRONT_NEAR + 30.0:
+                near += 1
+        n = 0
+        while n < 80 and len(vals) < 25 and (near > 0 or (n < 20 and len(vals) < 5)):
+            self.step(0.0, 0.0)
+            if self.dC < 8190:
+                vals.append(self.dC)
+                if self.dC < FRONT_NEAR + 30.0:
+                    near += 1
+            n += 1
+        f = 8190
+        if len(vals) >= 5:
+            vals.sort()
+            f = vals[len(vals) // 2]
+        c = self.cell_along(self.cx, self.cy, d)
+        fx = 0.0
+        if f < FRONT_NEAR:
+            e = c + FRONT_CENTER - f - self.along(d)
+            if fabs(e) < 60.0:
+                fx = self.abs_fix(e, self.front_sig(len(vals)))
+        mv = c - self.along(d)
+        if fabs(mv) > 60.0:
+            log("align skipped, move", int(mv))     # pose estimate is off: do not drive blind
+            return
+        if fabs(mv) > HW_ALIGN_TOL:
+            self.move_to(d, self.along(d) + clamp(mv, -30.0, 30.0))
+        log("align front", f, "fix", int(fx), "move", int(mv), "sa", int(self.sa()), "ms", self.now() - t0)
+
     # Gyro bias from samples taken with BOTH wheels dead still (a turn that
     # is still unwinding has zero forward motion but is still rotating).
     def zupt_add(self, gs, gn):
@@ -1330,6 +1403,7 @@ class Mouse:
             vals.sort()
             self.fmed = vals[len(vals) // 2]
         self.fmed_ok = 1
+        self.fvals = vals
 
     # Drive backwards (still facing f) to along-position a_end on axis f.
     # Same corridor tracking as forwards, with the lateral steering reversed.
@@ -1447,6 +1521,8 @@ class Mouse:
         sr.sort()
         self.sLm = sl[len(sl) // 2] if len(sl) >= 3 else 0
         self.sRm = sr[len(sr) // 2] if len(sr) >= 3 else 0
+        self.sLn = len(sl)
+        self.sRn = len(sr)
 
     # At a cell stop, right after the stationary vote: a wall seen ahead
     # (median of ~20 readings, so stray echoes are outvoted) fixes the
@@ -1457,6 +1533,15 @@ class Mouse:
         f = self.fmed
         if not STOP_FIX or not self.fmed_ok or f > 500:
             return 0
+        if POS_MODEL:
+            # only this cell's own front wall (longer readings read short)
+            if f >= FRONT_NEAR:
+                return 0
+            d = self.d
+            e = self.cell_along(self.cx, self.cy, d) + FRONT_CENTER - f - self.along(d)
+            if fabs(e) > 60.0:
+                return 0
+            return int(self.abs_fix(e, self.front_sig(len(self.fvals))))
         e = self.wall_err(f)
         if e is None:
             return 0
@@ -1796,6 +1881,9 @@ class Mouse:
     # Front ToF: every wall across the corridor sits on a multiple of CELL,
     # so snap the measured wall position and pull the along estimate onto it.
     def front_fix(self):
+        if POS_MODEL:
+            self.front_fuse()
+            return
         if self.dC <= 0 or self.dC > FRONT_FIX_MAX:
             return
         if fabs(wrap180(self.th - 90.0 * self.d)) > 6.0:
@@ -1808,6 +1896,209 @@ class Mouse:
             c = FRONT_GAIN * err
             self.X += DX[d] * c
             self.Y += DY[d] * c
+
+    # Board: a wall across the corridor close ahead (front reading below
+    # FRONT_NEAR, the range it was calibrated in) pulls the along estimate a
+    # little with each fresh reading (median of the last three, error
+    # clipped so the ToF's long tail cannot drag it). The stop then lands on
+    # the averaged position instead of on the first low reading, which
+    # stopped it 10-25 mm short. Longer readings are not used: they catch
+    # the floor and read 15-30 mm short.
+    def front_fuse(self):
+        if self.aC != 0 or self.mC >= FRONT_NEAR:
+            return
+        d = self.d
+        if fabs(wrap180(self.th - 90.0 * d)) > 6.0:
+            return
+        b = self.along(d) + FRONT_OFF + self.mC     # implied wall line
+        bs = CELL * float(round(b / CELL))
+        e = bs - b
+        if fabs(e) > 30.0 or self.known_open(d, bs):
+            return                      # no wall line there / map says open: stray echo
+        c = HW_FRONT_GAIN * clamp(e, -15.0, 15.0)
+        self.X += DX[d] * c
+        self.Y += DY[d] * c
+        s = self.sa()
+        self.sa0 = s - 0.1 * (s - 4.0) if s > 4.0 else s
+        self.odo = 0.0
+
+    # ---- along-track uncertainty and absolute fixes (board) -------------
+    # 1-sigma along error: the last fix's, plus 5% of the distance driven.
+    def sa(self):
+        s = self.sa0 + 0.05 * self.odo
+        return s if s < 40.0 else 40.0
+
+    # Absolute along-track measurement saying the estimate is e mm short
+    # (sigma sm): apply the share the two uncertainties call for.
+    def abs_fix(self, e, sm):
+        s = self.sa()
+        s2 = s * s
+        m2 = sm * sm
+        c = e * s2 / (s2 + m2)
+        d = self.d
+        self.X += DX[d] * c
+        self.Y += DY[d] * c
+        s = _sqrt(s2 * m2 / (s2 + m2))
+        self.sa0 = s if s > 3.0 else 3.0
+        self.odo = 0.0
+        return c
+
+    # Sigma of a median of n front readings standing still (+-16 mm each).
+    @staticmethod
+    def front_sig(n):
+        return _sqrt(400.0 / (n if n > 0 else 1) + 4.0)
+
+    # After a spin: a 90 swaps the along and sideways uncertainties (along
+    # error before the turn is sideways error after it), a 180 keeps them;
+    # the spin itself adds ~3 mm of axle slip. Never below ~8 mm sideways:
+    # a calibration error (FRONT_CENTER, side offset) is not in the model,
+    # and latfix right after the turn is the check that catches it.
+    # Edge trackers restart.
+    def swap_axes(self, delta):
+        sa = self.sa()
+        if fabs(fabs(wrap180(delta)) - 90.0) < 45.0:
+            p = self.p11
+            self.p11 = (sa * sa if sa > 8.0 else 64.0) + 9.0
+            self.sa0 = _sqrt((p if p > 25.0 else 25.0) + 9.0)
+        else:
+            if self.p11 < 64.0:
+                self.p11 = 64.0
+            self.sa0 = _sqrt(sa * sa + 9.0)
+        self.odo = 0.0
+        self.p12 = 0.0
+        self.rC = [8190, 8190, 8190]    # front readings of the old axis no longer apply
+        self.mC = 8190
+        self.edge_reset()
+
+    def edge_reset(self):
+        self.ecls[0] = 0
+        self.ecls[1] = 0
+        self.ec[0] = 0
+        self.ec[1] = 0
+
+    # ---- side-wall edges: absolute along fixes on the move (board) -------
+    # A side reading switching between wall (< SIDE_WALL) and open (>= 140)
+    # means the side sensor just passed a cell boundary. Confirmed by two
+    # readings of the new class; placed midway between the last old and the
+    # first new reading (corrected for ToF age and the beam slant at the
+    # current heading). Dropouts and 100-140 readings are ignored.
+    def edge_track(self):
+        if self.v < 40.0:
+            return
+        d = self.d
+        psi = wrap180(self.th - 90.0 * d) * D2R
+        if fabs(psi) > 0.1:
+            self.ec[0] = 0
+            self.ec[1] = 0
+            return
+        a = self.along(d) + SIDE_X - self.v * HW_TOF_LAG
+        s = 0
+        while s < 2:
+            r = self.dL if s == 0 else self.dR
+            if r < SIDE_WALL:
+                k = 1
+            elif 140.0 <= r < 8190:
+                k = 2
+            else:
+                s += 1
+                continue
+            ah = a - SIDE_NOM * psi if s == 0 else a + SIDE_NOM * psi
+            if self.ecls[s] == 0:
+                self.ecls[s] = k
+                self.en[s] = 1
+                self.ea[s] = ah
+            elif k == self.ecls[s]:
+                self.ec[s] = 0          # back to the old class: that was a stray
+                self.en[s] += 1
+                self.ea[s] = ah
+            else:
+                if self.ec[s] == 0:
+                    self.eca[s] = ah
+                self.ec[s] += 1
+                if self.ec[s] >= 2:
+                    gap = self.eca[s] - self.ea[s]
+                    if self.en[s] >= 3 and 0.0 <= gap < 25.0:
+                        self.edge_event(s, self.ecls[s], 0.5 * (self.ea[s] + self.eca[s]))
+                    self.ecls[s] = k
+                    self.en[s] = self.ec[s]
+                    self.ea[s] = ah
+                    self.ec[s] = 0
+            s += 1
+
+    # Cell index containing along-position a on axis d, in the corridor the
+    # mouse is in (-1 = outside the map).
+    def cell_at(self, d, a):
+        sv = self.solver
+        if d & 1:
+            x = self.X
+            y = DY[d] * a
+        else:
+            x = DX[d] * a
+            y = self.Y
+        if x < 0.0 or y < 0.0:
+            return -1
+        x = int(x / CELL)
+        y = int(y / CELL)
+        if not sv.inside(x, y):
+            return -1
+        return y * sv.cols + x
+
+    # Side s (0 = L, 1 = R) changed class at sensor along-position ae: old =
+    # 1 wall -> open, 2 open -> wall. Only used if the map agrees: the cell
+    # behind that boundary has the old class on that side, the cell ahead
+    # the new one (if the cell ahead is not mapped yet, the fix is applied
+    # now and undone if the cell's walls, sensed at the stop, disagree).
+    def edge_event(self, s, old, ae):
+        sv = self.solver
+        if sv is None:
+            return
+        d = self.d
+        bnd = CELL * float(round(ae / CELL))
+        e = bnd + (self.ep if old == 1 else -self.ep) - ae
+        if fabs(e) > 35.0:
+            return
+        sd = (d + 1) & 3 if s == 0 else (d + 3) & 3
+        bit = 1 << sd
+        cb = self.cell_at(d, bnd - CELL / 2.0)
+        ca = self.cell_at(d, bnd + CELL / 2.0)
+        if cb < 0 or ca < 0 or not (sv.known[cb] & bit):
+            return
+        if (1 if (sv.wall[cb] & bit) else 0) != (1 if old == 1 else 0):
+            return
+        want = 0 if old == 1 else 1     # the cell ahead must have the new class
+        prov = 0
+        if sv.known[ca] & bit:
+            if (1 if (sv.wall[ca] & bit) else 0) != want:
+                return
+        else:
+            prov = 1
+        # learn the offset: a wall end is seen p past the boundary and a wall
+        # start p before it, while the position error shifts both the same
+        # way - so half the difference of the two averages is p
+        x = ae - bnd
+        if old == 1:
+            self.exw = x if self.enw == 0 else self.exw + 0.25 * (x - self.exw)
+            self.enw += 1
+        else:
+            self.exo = x if self.eno == 0 else self.exo + 0.25 * (x - self.exo)
+            self.eno += 1
+        c = self.abs_fix(e, 6.0)
+        if prov and len(self.epend) < 4:
+            self.epend.append((ca, bit, want, d, c))
+        log("edge", "L" if s == 0 else "R", "wo" if old == 1 else "ow", "e", int(e), "fix", int(c),
+            "new" if prov else "map", "p", int(self.ep))
+        if self.enw >= 2 and self.eno >= 2:
+            self.ep = clamp(0.5 * (self.exw - self.exo), 0.0, 20.0)
+
+    # After a new cell's walls are recorded: undo edge fixes it contradicts.
+    def edge_confirm(self):
+        sv = self.solver
+        for (ca, bit, want, dd, c) in self.epend:
+            if (sv.known[ca] & bit) and (1 if (sv.wall[ca] & bit) else 0) != want:
+                self.X -= DX[dd] * c
+                self.Y -= DY[dd] * c
+                log("edge undo", int(c))
+        self.epend = []
 
     # ---- in-place turn by a heading change (deg, map frame) --------------
     def turn_by(self, delta):
@@ -1905,6 +2196,34 @@ class Mouse:
         # roughly centred mouse (one noisy side once read 84 mm -> fake 40 mm)
         okl = self.sLm and fabs(self.sLm - NOM_L) < 25.0
         okr = self.sRm and fabs(self.sRm - NOM_R) < 25.0
+        if POS_MODEL:
+            # weighted by the noise: a median of n side readings (+-24 mm
+            # each) is good to 30/sqrt(n) mm; one wall alone also carries the
+            # corridor-width uncertainty. The turn already set p11 from the
+            # along uncertainty before it.
+            vl = 900.0 / (self.sLn if self.sLn > 0 else 1) + 9.0
+            vr = 900.0 / (self.sRn if self.sRn > 0 else 1) + 9.0
+            if okl and okr:
+                z = clamp(0.5 * ((NOM_L - self.sLm) + (self.sRm - NOM_R)), -25.0, 25.0)
+                m2 = 0.25 * (vl + vr)
+            elif okl:
+                z = clamp(NOM_L - self.sLm, -15.0, 15.0)
+                m2 = vl + 25.0
+            elif okr:
+                z = clamp(self.sRm - NOM_R, -15.0, 15.0)
+                m2 = vr + 25.0
+            else:
+                return
+            d = self.d
+            p = self.p11
+            g = p / (p + m2)
+            e = z - (self.lateral(d) - self.cell_lat(self.cx, self.cy, d))
+            dl = g * e
+            self.X -= DY[d] * dl
+            self.Y += DX[d] * dl
+            self.p11 = p * m2 / (p + m2)
+            log("latfix", int(z), "mm corr", int(dl), "g", int(100 * g))
+            return
         if okl and okr:
             z = clamp(0.5 * ((NOM_L - self.sLm) + (self.sRm - NOM_R)), -15.0, 15.0)
         elif okl:
@@ -1976,6 +2295,9 @@ class Mouse:
             delta += 360.0
         self.turn_by(delta)
         self.d = nd
+        if POS_MODEL:
+            self.swap_axes(delta)
+            return
         self.p12 = 0.0
         if self.p11 < 100.0:
             self.p11 = 100.0
@@ -1998,6 +2320,9 @@ class Mouse:
             return
         self.turn_by(delta)
         self.d = nd
+        if POS_MODEL:
+            self.swap_axes(delta)
+            return
         self.p12 = 0.0
         p = self.p11
         self.p11 = 100.0 if p < 100.0 else p
@@ -2037,6 +2362,8 @@ class Mouse:
         self.step(vc, w)
         self.kf(latc)
         self.front_fix()
+        if EDGE_FIX:
+            self.edge_track()
 
     # Trapezoidal profile: accelerate at ACCEL, cap at vmax, and never be
     # faster than what still allows reaching v_end at the end of `rem` mm.
@@ -2068,6 +2395,7 @@ class Mouse:
         y0 = self.cy
         a0 = self.cell_along(x0, y0, d)
         latc = self.cell_lat(x0, y0, d)
+        self.epend = []
         goal = 1
         k = 1                       # cell being approached (relative index)
         decided = 0
@@ -2196,6 +2524,7 @@ class Mouse:
     # means stop there.
     def straight(self, d, latc, a_end, v_end, vmax):
         self.d = d
+        self.epend = []
         if KEEP_IW:
             self.iw = self.iw_fwd
         self.a_goal = a_end if v_end == 0.0 else 1e9
@@ -2380,6 +2709,8 @@ class Mouse:
         t = NOM_L
         NOM_L = NOM_R
         NOM_R = t
+        self.edge_reset()
+        self.epend = []
         log("maze is on the", "LEFT" if SIDE > 0 else "RIGHT", "of the start heading")
 
     # First side opening on the start corridor tells which side the maze is
@@ -2456,6 +2787,7 @@ class Mouse:
             sc.sort()
             self.fmed = sc[len(sc) // 2]
         self.fmed_ok = 1
+        self.fvals = sc
         self.vfront = (fs, fs + fo)
         self.side_medians(list(sl), list(sr))
         if not calib:
@@ -2877,17 +3209,19 @@ def _mission():
             # mapped already: only a quick look ahead to fix the position
             m.front_median(30)
             log("seen", m.cx, m.cy, "d", m.d, "front", m.fmed, "fix", m.stop_fix(), "th", int(m.th),
-                "kfh", int(10 * m.kfh) / 10.0)
+                "sa", int(m.sa()))
             m.kfh = 0.0
         elif STOP_EACH:
             # stopped on the new cell's centre: sense standing still, then plan
             wl, wf, wr = m.still_walls(SENSE_STEPS, 0)
-            fx = m.stop_fix()
             wl, wr = m.side_check(wl, wr, wf)
             record_cell(solver, m.cx, m.cy, m.d, wl, wf, wr)
+            if EDGE_FIX:
+                m.edge_confirm()
+            fx = m.stop_fix()
             log("cell", m.cx, m.cy, "d", m.d, "walls L F R", wl, wf, wr, "votes L", m.vote[0], "/", m.vote[1],
                 "F", m.vfront[0], "/", m.vfront[1], "R", m.vote[2], "/", m.vote[3], "front", m.fmed,
-                "fix", fx, "th", int(m.th), "kfh", int(10 * m.kfh) / 10.0)
+                "fix", fx, "th", int(m.th), "sa", int(m.sa()))
             m.kfh = 0.0
         i = m.cy * solver.cols + m.cx
         room = solver.check_room()
