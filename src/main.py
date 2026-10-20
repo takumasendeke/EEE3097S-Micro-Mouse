@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v49 21-Oct 20:00"
+BUILD = "v50 21-Oct 21:00"
 
 try:
     import math
@@ -306,40 +306,48 @@ def wrap180(a):
     return a
 
 
-LOGBUF = None                   # board: every log line is also kept here and saved to runlog.txt
-LOGN = 0                        # lines since the last save
+LOGBUF = None                   # board: log lines not yet written to runlog.txt
+SAVE_DUE = 0                    # 1 = enough lines (or a BUMP/STALL) to write at the next stop
+SAVE_OK = 1                     # 0 = no writes now (sprint); everything is written at the end
 
 
 def log(*args):
     if DEBUG:
         print(*args)
         if LOGBUF is not None:
-            # RAM is small: keep the first 15 lines and the latest ~145
-            # (the end of the run is what matters after a crash)
             LOGBUF.append(" ".join([str(a) for a in args])[:110])
-            if len(LOGBUF) > 160:
-                del LOGBUF[15]
-            global LOGN
-            LOGN += 1
-            if LOGN >= 25 or "BUMP" in LOGBUF[-1] or "STALL" in LOGBUF[-1]:
-                LOGN = 0
-                save_log()              # a run switched off mid-way still leaves a log
+            if len(LOGBUF) > 150:
+                del LOGBUF[1]           # only if it could not write for very long
+            global SAVE_DUE
+            if len(LOGBUF) >= 25 or "BUMP" in LOGBUF[-1] or "STALL" in LOGBUF[-1]:
+                SAVE_DUE = 1
 
 
-# Board: write the kept log lines to runlog.txt on the mouse's drive (plug in
-# USB afterwards and open UCT_MMOUSE/runlog.txt). Never lets an error escape.
+# Board: append the pending log lines to runlog.txt on the mouse's drive (plug
+# in USB afterwards and open UCT_MMOUSE/runlog.txt). Writing flash freezes the
+# board for ~1 s and loses encoder counts, so this only ever runs standing
+# still (settle(), mission end) - v49 wrote mid-drive, lost ~140 mm of
+# odometry and stopped between two cells. Never lets an error escape.
 def save_log():
-    if LOGBUF is None:
+    global SAVE_DUE
+    SAVE_DUE = 0
+    if not LOGBUF:
         return
     try:
-        f = open("runlog.txt", "w")
+        f = open("runlog.txt", "a")
         for line in LOGBUF:
             f.write(line)
             f.write("\n")
         f.close()
-        pass
+        LOGBUF.clear()
     except Exception as e:
         print("could not save runlog.txt:", e)
+
+
+# A safe moment (wheels stopped and still): write the log if it is due.
+def save_due():
+    if SAVE_DUE and SAVE_OK:
+        save_log()
 
 
 # 1 in co-simulation, 0 on the board - CPython has os.environ, MicroPython does not.
@@ -1342,6 +1350,31 @@ class Mouse:
             self.move_to(d, self.along(d) + clamp(mv, -25.0, 25.0))
         log("align front", f, "move", int(mv), "ms", self.now() - t0)
 
+    # Board: after a stop, a front median 45-110 mm longer than at a cell
+    # centre means the mouse is between two cells - no centre is that far
+    # from a wall. (v49 stopped like that and mapped a wall at the wrong edge.)
+    def between(self):
+        return POS_MODEL and self.fmed_ok and len(self.fvals) >= 8 \
+            and FRONT_CENTER + 45.0 < self.fmed < FRONT_CENTER + 110.0
+
+    # ... so creep up to that wall (it is really there), then take the
+    # position from it: the axle is now on the centre of the cell in front of
+    # the nearest boundary. Leaves a fresh front median for stop_fix.
+    def creep_to_wall(self):
+        d = self.d
+        log("front", self.fmed, "- between cells: creeping to the wall")
+        self.move_to(d, self.along(d) + clamp(self.fmed - FRONT_CENTER, 0.0, 75.0))
+        self.front_median(30)
+        f = self.fmed
+        if f < FRONT_NEAR:
+            b = self.along(d) + FRONT_OFF + f       # the wall line, in the estimate
+            self.sa0 = 40.0                         # the wall decides, not the old estimate
+            self.odo = 0.0
+            self.abs_fix(CELL * float(round(b / CELL)) - b, self.front_sig(len(self.fvals)))
+            self.cx = int(self.X / CELL)
+            self.cy = int(self.Y / CELL)
+            log("re-centred in", self.cx, self.cy, "front", f)
+
     # Board, before every spin: put the axle on the cell centre along the
     # current axis. Spinning, the front corners sweep ~86 mm round the axle
     # and the walls are ~94 mm away, so it must be within a few mm. A wall
@@ -1635,6 +1668,8 @@ class Mouse:
             else:
                 quiet = 0
             n += 1
+        if quiet >= 4:
+            save_due()           # wheels still: a safe moment to write the log
 
     def calibrate(self):
         uct_mouse.set_motors(0, 0)
@@ -1927,8 +1962,7 @@ class Mouse:
         if fabs(e) > 30.0 or self.known_open(d, bs):
             return                      # no wall line there / map says open: stray echo
         c = HW_FRONT_GAIN * clamp(e, -15.0, 15.0)
-        self.X += DX[d] * c
-        self.Y += DY[d] * c
+        self.shift(c)
         s = self.sa()
         self.sa0 = s - 0.1 * (s - 4.0) if s > 4.0 else s
         self.odo = 0.0
@@ -1946,13 +1980,23 @@ class Mouse:
         s2 = s * s
         m2 = sm * sm
         c = e * s2 / (s2 + m2)
-        d = self.d
-        self.X += DX[d] * c
-        self.Y += DY[d] * c
+        self.shift(c)
         s = _sqrt(s2 * m2 / (s2 + m2))
         self.sa0 = s if s > 3.0 else 3.0
         self.odo = 0.0
         return c
+
+    # Move the along estimate by c mm, and the edge tracker's stored
+    # positions with it: they are in the same frame (v49: a wall starting on
+    # both sides at once got the same correction applied twice).
+    def shift(self, c):
+        d = self.d
+        self.X += DX[d] * c
+        self.Y += DY[d] * c
+        self.ea[0] += c
+        self.ea[1] += c
+        self.eca[0] += c
+        self.eca[1] += c
 
     # Sigma of a median of n front readings standing still (+-16 mm each).
     @staticmethod
@@ -2008,9 +2052,9 @@ class Mouse:
             self.eo[0] = 0
             self.eo[1] = 0
             return
-        a = self.along(d) + SIDE_X - self.v * HW_TOF_LAG
         s = 0
         while s < 2:
+            a = self.along(d) + SIDE_X - self.v * HW_TOF_LAG
             r = self.dL if s == 0 else self.dR
             if r < SIDE_WALL:
                 k = 1
@@ -3197,11 +3241,15 @@ def mission():
 
 
 def _mission():
-    global SIDE_NOM, LOGBUF
+    global SIDE_NOM, LOGBUF, SAVE_OK
     if not uct_mouse.init():
         return
     print("S4 BUILD", BUILD)
     if not on_simulator():
+        try:
+            open("runlog.txt", "w").close()     # this run's log starts empty
+        except Exception:
+            pass
         LOGBUF = ["S4 BUILD " + BUILD]
     try:
         uct_mouse.display_text(1, "S4 " + BUILD[:3])
@@ -3313,12 +3361,17 @@ def _mission():
         if STOP_EACH and SKIP_SEEN and solver.visited[m.cy * solver.cols + m.cx]:
             # mapped already: only a quick look ahead to fix the position
             m.front_median(30)
+            if m.between():
+                m.creep_to_wall()
             log("seen", m.cx, m.cy, "d", m.d, "front", m.fmed, "fix", m.stop_fix(), "th", int(m.th),
                 "sa", int(m.sa()))
             m.kfh = 0.0
         elif STOP_EACH:
             # stopped on the new cell's centre: sense standing still, then plan
             wl, wf, wr = m.still_walls(SENSE_STEPS, 0)
+            if m.between():
+                m.creep_to_wall()
+                wl, wf, wr = m.still_walls(SENSE_STEPS, 0)      # sense again where it really is
             wl, wr = m.side_check(wl, wr, wf)
             record_cell(solver, m.cx, m.cy, m.d, wl, wf, wr)
             if EDGE_FIX:
@@ -3380,6 +3433,8 @@ def _mission():
     m.align_front()
     m.safe_turn(0)                      # face the start heading (safe 180: back off, roomier side)
     # ---------------- Phase 4: pause, sprint ----------------
+    save_log()                          # standing at the start: write now, not during the pause
+    SAVE_OK = 0                         # the sprint never pauses to write (finally writes it)
     m.zupt(int(3000 / DT_MS))
     if solver.room is not None:
         k = 0
