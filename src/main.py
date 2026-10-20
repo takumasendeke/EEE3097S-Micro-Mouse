@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v47 21-Oct 18:00"
+BUILD = "v48 21-Oct 19:00"
 
 try:
     import math
@@ -119,7 +119,7 @@ HW_KICK_R         = 0           #
 HW_STOP_CREEP     = 45.0        # mm/s: slowest speed into a stop (70 arrived too hot); stop swing is fixed by HW_STRAIGHTEN
 HW_BRAKE_HOLD     = 0           # 1 = gyro-steered roll-out at stops (tested worse in emulation: off)
 HW_STRAIGHTEN     = 0.0         # deg: 0 = off (correction spins after stops looked like wiggling)
-HW_EXPLORE_ALL    = 1           # 1 = keep exploring after the room is found, until the whole maze is mapped
+HW_EXPLORE_ALL    = 0           # 0 = brief: pirouette as soon as it is in the confirmed room (1 = map the whole maze first)
 HW_EXPLORE_TMAX   = 200.0       # s: ... but stop exploring after this long once the room is known
 HW_STOP_EXTRA     = 0.0         # mm past the cell centre at every stop (8 was making up for the bad far-wall fixes)
 HW_WHEEL_PI       = 1           # 1 = each wheel on its OWN encoder speed loop (diag.py's controller: straight, square stops)
@@ -148,7 +148,7 @@ HW_ACCEL          = 400.0       # mm/s^2 (diag.py value)
 HW_W_TURN         = 180.0       # deg/s in-place turn ceiling
 HW_ALPHA_TURN     = 1000.0      # deg/s^2
 HW_TURN_TOL       = 3.0         # deg: accept the spin within this (1.5 caused extra back-and-forth corrections)
-HW_ROOM_DOORS     = 2           # max openings in the target room's rim
+HW_ROOM_DOORS     = 8           # max openings in the target room's rim (8 = any: the brief allows arbitrary openings)
 HW_KP_V           = 0.10        # effort per mm/s (common mode)
 HW_KI_V           = 0.6
 HW_KP_W           = 0.08        # effort per deg/s (gyro rate loop; was 0.06 - snappier heading hold)
