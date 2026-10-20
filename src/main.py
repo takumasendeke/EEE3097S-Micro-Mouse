@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v37 21-Oct 02:00"
+BUILD = "v38 21-Oct 02:30"
 
 try:
     import math
@@ -113,14 +113,17 @@ HW_TURN_BB        = 1           # 1 = spin turns at a fixed PWM, cut early, coas
 HW_TURN_PWM       = 52          # spin PWM: diag turned cleanly at ~200 deg/s around 50-60 (80 spun ~350 deg/s)
 HW_TURN_COAST     = 0.045       # s: coast per deg/s after cutting (diag: ~7 deg at 200 deg/s); learned each turn
 
-HW_KICK_L         = 44          # PWM a wheel at rest needs to start (diag: wheels moved by ~42-46)
-HW_KICK_R         = 48          # ... right
+HW_KICK_L         = 0           # start kick off: per-wheel speed control starts both wheels together (diag.py had none)
+HW_KICK_R         = 0           # 
 
 HW_STOP_CREEP     = 45.0        # mm/s: slowest speed into a stop (70 arrived too hot); stop swing is fixed by HW_STRAIGHTEN
 HW_BRAKE_HOLD     = 0           # 1 = gyro-steered roll-out at stops (tested worse in emulation: off)
 HW_STRAIGHTEN     = 0.0         # deg: 0 = off (correction spins after stops looked like wiggling)
 HW_EXPLORE_ALL    = 1           # 1 = keep exploring after the room is found, until the whole maze is mapped
 HW_EXPLORE_TMAX   = 200.0       # s: ... but stop exploring after this long once the room is known
+HW_WHEEL_PI       = 1           # 1 = each wheel on its OWN encoder speed loop (diag.py's controller: straight, square stops)
+HW_WHEEL_KP       = 0.12        # PWM per mm/s of wheel speed error (diag.py)
+HW_WHEEL_KI       = 0.8         # PWM per mm of accumulated wheel speed error (diag.py)
 HW_LOOP_FIXED     = 1           # 1 = fixed 10 ms loop period (wait only the rest of the period)
 HW_FRONT_CENTER   = 47.0        # mm front reading at a cell centre: v35 log stops read 52/38/53/40/58 (~48), tof_check ~50
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
@@ -132,7 +135,7 @@ HW_V_EXPLORE      = 160.0       # mm/s explore (was 200: overshoots / front cras
 HW_V_RETURN       = 220.0       # mm/s
 HW_V_SPRINT       = 280.0       # mm/s sprint (was 330)
 HW_V_TURN         = 170.0       # mm/s through smooth 90 deg arcs
-HW_ACCEL          = 1200.0      # mm/s^2
+HW_ACCEL          = 600.0       # mm/s^2 (diag.py used 400 and drove perfectly; 1200 yawed it at starts)
 HW_W_TURN         = 180.0       # deg/s in-place turn ceiling
 HW_ALPHA_TURN     = 1000.0      # deg/s^2
 HW_TURN_TOL       = 3.0         # deg: accept the spin within this (1.5 caused extra back-and-forth corrections)
@@ -225,6 +228,7 @@ TURN_COAST = 0.08
 KICK_L = 0
 KICK_R = 0
 LOOP_FIXED = 0
+WHEEL_PI = 0
 STOP_CREEP = 40.0
 STRAIGHTEN = 0.0
 BRAKE_HOLD = 0
@@ -260,6 +264,17 @@ def fabs(x):
     if x < 0.0:
         return -x
     return x
+
+
+# Feed-forward PWM for a wheel speed v (mm/s): dead-band + v / gain, with the
+# gain from VMAX = gain * (100 - dead-band) (diag.py's pwm_for).
+def wheel_ff(v, db, vmax):
+    kv = vmax / (100.0 - db)
+    if v > 0.5:
+        return db + v / kv
+    if v < -0.5:
+        return -db + v / kv
+    return 0.0
 
 
 def med3(a, b, c):
@@ -329,7 +344,7 @@ def select_profile():
     global DEBUG, FRONT_STOP, FRONT_CENTER, TILT_LIM, KF_HEADING, STOP_EACH, WALL_K, GYRO_TRIM, TEST_STRAIGHT, SIDE_AUTO, SIDE_GUARD, TPMM_AUTO, FRONT_SNAP, GYRO_AUTO, ROOM_MAX_DOORS, VMAX_L, VMAX_R, SYSID
     global FRONT_REACT, FRONT_CHECK, TURN_LEAD, TURN_KLIN, TURN_WMIN, ALIGN_MOVE, ARCS, KEEP_IW, STOP_FIX
     global PIVOT_BACK, REVERSE_OUT, REV_HOME, SPIN_SHIFT, V_REVERSE, SENSE_STEPS, SKIP_SEEN, WALL_STOP, ZUPT_STOP
-    global KLAT, PSI_MAX
+    global KLAT, PSI_MAX, WHEEL_PI
     global TURN_BB, TURN_PWM, TURN_COAST, KICK_L, KICK_R, LOOP_FIXED, SIDE_OFFSET, STOP_CREEP, STRAIGHTEN, EXPLORE_ALL, BRAKE_HOLD
     IS_SIM = on_simulator()
     if IS_SIM == 1:
@@ -380,6 +395,7 @@ def select_profile():
     VMAX_R = HW_VMAX_R if HW_VMAX_R > 0.0 else HW_VMAX
     SIDE_OFFSET = HW_SIDE_OFFSET
     KLAT = HW_KLAT
+    WHEEL_PI = HW_WHEEL_PI
     PSI_MAX = HW_PSI_MAX
     SYSID = HW_SYSID
     TPMM_AUTO = HW_TPMM_AUTO
@@ -761,6 +777,10 @@ class Mouse:
         self.a_goal = 1e9       # along-position where the current move plans to stop
         self.still_l = 1        # wheel did not move during the last step (for the start kick)
         self.kf_on = 1          # 0 = ignore the side walls (calibration straight check)
+        self.vlw = 0.0          # filtered speed of each wheel, mm/s
+        self.vrw = 0.0
+        self.ilw = 0.0          # each wheel's speed-loop integrator (PWM)
+        self.irw = 0.0
         self.kfh = 0.0          # degrees the side walls rotated the heading estimate (logged per cell)
         self.pl_last = 0        # last PWM sent to each motor
         self.pr_last = 0
@@ -797,6 +817,8 @@ class Mouse:
         ds = 0.5 * (dl + dr)
         self.ds = ds
         self.v += 0.4 * (ds / dt - self.v)
+        self.vlw += 0.35 * (dl / dt - self.vlw)     # each wheel's own speed (wheel-PI mode)
+        self.vrw += 0.35 * (dr / dt - self.vrw)
         g = (uct_mouse.get_gyro() - self.bias) / GYRO_GAIN
         self.rate_p = g
         self.rate = g * SIDE
@@ -977,10 +999,29 @@ class Mouse:
                 w = 0.0
         if v == 0.0 and w == 0.0:
             uct_mouse.set_motors(0, 0)
+            self.ilw = 0.0
+            self.irw = 0.0
             self.iv *= 0.5
             self.iw *= 0.5
             self.vcmd_prev = 0.0
             self.wcmd_prev = 0.0
+        elif WHEEL_PI:
+            # diag.py's controller: the turn rate becomes a speed difference,
+            # then EACH wheel follows its own target on its own encoder
+            # (feed-forward from the measured dead-band and gain + PI). Both
+            # wheels speed up and slow down together: no lean, square stops.
+            wl = w * SIDE * D2R * HALF_AXLE
+            cl = v - wl
+            cr = v + wl
+            el = cl - self.vlw
+            er = cr - self.vrw
+            self.ilw = clamp(self.ilw + HW_WHEEL_KI * el * dt, -15.0, 15.0)
+            self.irw = clamp(self.irw + HW_WHEEL_KI * er * dt, -15.0, 15.0)
+            pl = int(clamp(wheel_ff(cl, DB_L, VMAX_L) + HW_WHEEL_KP * el + self.ilw, -100.0, 100.0))
+            pr = int(clamp(wheel_ff(cr, DB_R, VMAX_R) + HW_WHEEL_KP * er + self.irw, -100.0, 100.0))
+            uct_mouse.set_motors(pl, pr)
+            self.pl_last = pl
+            self.pr_last = pr
         else:
             wp = w * SIDE
             ev = v - self.v
