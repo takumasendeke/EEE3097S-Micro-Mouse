@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v33 21-Oct 00:00"
+BUILD = "v35 21-Oct 01:00"
 
 try:
     import math
@@ -98,8 +98,8 @@ HW_STOP_FIX       = 1           # 1 = at each cell stop, a wall seen ahead (<500
 # Real chassis: 105 mm long, front ToF 65 mm ahead of the axle, so turning on the
 # spot the front corners sweep ~86 mm round the axle against ~94 mm to a wall.
 HW_PIVOT_BACK     = 4.0         # mm short of centre before a turn with a wall ahead (12 put it 12 mm towards the post after the turn)
-HW_REVERSE_OUT    = 1           # 1 = leave dead ends backwards (no 180 deg spin between three walls)
-HW_REV_HOME       = 1           # 1 = drive the last straight of the return backwards (no spin in the start cell)
+HW_REVERSE_OUT    = 0           # 0 = 180 spin in dead ends (reversing is blind: drifted right into walls behind)
+HW_REV_HOME       = 0           # 0 = drive into the start forwards, then spin to face the start heading
 HW_SPIN_SHIFT     = 8.0         # mm step off a wall before a risky spin (15 left it off-centre into the next corridor)
 HW_V_REVERSE      = 100.0       # mm/s top speed backwards (slow: more side-wall fixes per mm)
 HW_SENSE_STEPS    = 30          # 10 ms steps of standing-still wall sensing in a NEW cell
@@ -1074,6 +1074,10 @@ class Mouse:
                     r = 0.0
                 if rem - r * self.tcoast <= 0.0:
                     break               # the coast from here reaches the target
+                if n > 15 and fabs(self.th - th0) < 2.0 and p >= 95:
+                    log("turn blocked - giving up (wheels stuck or touching)")
+                    tries = 3
+                    break
                 if n > 15 and fabs(self.th - th0) < 2.0 and p < 95:
                     p += 5              # not turning: wheels stuck, push harder
                     th0 = self.th
@@ -1082,6 +1086,13 @@ class Mouse:
                 n += 1
             rc = sg * self.rate
             thc = self.th
+            if rc > 80.0:
+                # active brake: a short opposite pulse stops the spin crisply
+                # (free coasting varied 58-115 ms and overshot 8-16 deg)
+                k = 0
+                while k < 4 and sg * self.rate > 0.33 * rc:
+                    self.spin_raw(-sg, TURN_PWM)
+                    k += 1
             self.spin_stop()
             if rc > 60.0:
                 c = sg * (self.th - thc) / rc
@@ -1875,6 +1886,9 @@ class Mouse:
         if (w & (1 << ((d + 2) & 3))) and not (w & (1 << d)):
             # the back is swept too: step off a wall behind first
             self.move_to(d, self.cell_along(self.cx, self.cy, d) + SPIN_SHIFT)
+        elif (w & (1 << d)) and not (w & (1 << ((d + 2) & 3))):
+            # dead end: back ~15 mm off the end wall so the nose clears it
+            self.move_to(d, self.cell_along(self.cx, self.cy, d) - 15.0)
         if (w & (1 << rt)) and not (w & (1 << lt)):
             sg = 1.0                    # CCW: swings over the open left
         elif (w & (1 << lt)) and not (w & (1 << rt)):
@@ -2856,7 +2870,8 @@ def _mission():
         if not moves or m.follow(moves, V_RETURN, V_TURN, 1):
             break
         k += 1                          # a front guard stopped it: replan from here
-    m.turn_to(0)
+    m.align_front()
+    m.safe_turn(0)                      # face the start heading (safe 180: back off, roomier side)
     # ---------------- Phase 4: pause, sprint ----------------
     m.zupt(int(3000 / DT_MS))
     if solver.room is not None:
