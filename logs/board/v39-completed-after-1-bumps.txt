@@ -1,0 +1,100 @@
+S4 BUILD v39 21-Oct 03:00
+maze 6 x 6 side nom 60.0 start ToF L/C/R 80 255 70 slot counts [1, 0, 1, 0, 1] gyro gain 1.0
+start walls L F R 1 0 1 centred L/R 56.0 50.0
+maze is on the RIGHT of the start heading
+cell 1 0 d 0 walls L F R 0 1 1 votes L 20 / 20 F 12 / 12 R 0 / 30 front 39 fix -12 th -2 kfh 0.0
+at 1 0 d 0 next 1 t 3.532
+align front 39 move 1 ms 0
+turn 92 err 1.1 ovs 0.0 ms 847 tries 1 coast 40
+cell 1 1 d 1 walls L F R 0 0 1 votes L 8 / 30 F 0 / 30 R 24 / 25 front 376 fix 0 th 82 kfh 0.0
+at 1 1 d 1 next 1 t 7.366
+cell 1 2 d 1 walls L F R 1 0 0 votes L 22 / 23 F 0 / 30 R 0 / 28 front 198 fix 11 th 84 kfh 0.0
+at 1 2 d 1 next 1 t 9.704
+cell 1 3 d 1 walls L F R 1 1 0 votes L 26 / 26 F 20 / 20 R 0 / 30 front 41 fix -15 th 82 kfh 0.0
+at 1 3 d 1 next 0 t 11.74
+align front 41 move 3 ms 3
+turn -82 err -1.1 ovs 0.0 ms 813 tries 1 coast 34
+cell 2 3 d 0 walls L F R 1 0 1 votes L 28 / 30 F 0 / 30 R 15 / 15 front 202 fix 11 th -4 kfh 0.0
+at 2 3 d 0 next 0 t 15.415
+cell 3 3 d 0 walls L F R 1 1 0 votes L 24 / 28 F 16 / 16 R 0 / 29 front 40 fix -10 th -1 kfh 0.0
+at 3 3 d 0 next 3 t 17.53
+align front 40 move 2 ms 1
+turn -88 err 0.8 ovs 0.8 ms 839 tries 1 coast 31
+cell 3 2 d 3 walls L F R 1 0 0 votes L 16 / 30 F 0 / 30 R 0 / 29 front 374 fix 17 th -93 kfh 0.0
+at 3 2 d 3 next 3 t 21.08
+cell 3 1 d 3 walls L F R 1 0 0 votes L 24 / 29 F 0 / 30 R 0 / 29 front 221 fix -3 th -90 kfh 0.0
+at 3 1 d 3 next 3 t 23.2
+cell 3 0 d 3 walls L F R 1 1 0 votes L 22 / 27 F 11 / 11 R 0 / 30 front 35 fix -15 th -81 kfh 0.0
+at 3 0 d 3 next 2 t 25.411
+align front 35 move -3 ms 1
+turn -98 err 1.1 ovs 1.1 ms 840 tries 1 coast 31
+cell 2 0 d 2 walls L F R 1 1 0 votes L 24 / 25 F 15 / 16 R 0 / 30 front 51 fix -15 th -180 kfh 0.0
+at 2 0 d 2 next 1 t 28.802
+align front 51 move 13 ms 92
+turn -89 err 0.9 ovs 0.9 ms 825 tries 1 coast 30
+ROOM found at 2 0 doors 1
+cell 2 1 d 1 walls L F R 1 1 0 votes L 27 / 27 F 25 / 25 R 0 / 30 front 57 fix 0 th -266 kfh 0.0
+at 2 1 d 1 next 0 t 32.097
+align front 57 move 19 ms 287
+turn -89 err 1.1 ovs 1.1 ms 764 tries 1 coast 31
+seen 3 1 d 0 front 56 fix -22 th -363 kfh 0.0
+at 3 1 d 0 next 1 t 35.6
+align front 56 move 18 ms 425
+turn 91 err -2.5 ovs 9.3 ms 1468 tries 3 coast 57
+seen 3 2 d 1 front 255 fix -21 th -273 kfh 0.0
+at 3 2 d 1 next 2 t 40.148
+align front 255 move 2 ms 0
+turn 93 err -0.2 ovs 8.3 ms 1189 tries 2 coast 58
+cell 2 2 d 2 walls L F R 1 0 1 votes L 23 / 26 F 1 / 30 R 19 / 21 front 235 fix -8 th -178 kfh 0.0
+at 2 2 d 2 next 2 t 44.099
+seen 1 2 d 2 front 58 fix -31 th -182 kfh 0.0
+at 1 2 d 2 next 3 t 46.127
+align front 58 move 20 ms 429
+turn 90 err -1.9 ovs 1.9 ms 869 tries 1 coast 59
+seen 1 1 d 3 front 240 fix -12 th -90 kfh 0.0
+at 1 1 d 3 next 2 t 50.051
+align front 240 move -6 ms 0
+turn -89 err 0.0 ovs 0.0 ms 984 tries 2 coast 49
+cell 0 1 d 2 walls L F R 1 1 0 votes L 21 / 29 F 9 / 9 R 0 / 30 front 42 fix -19 th -177 kfh 0.0
+at 0 1 d 2 next 1 t 53.757
+align front 42 move 4 ms 1
+turn -92 err -0.8 ovs 7.3 ms 1183 tries 2 coast 56
+cell 0 2 d 1 walls L F R 1 0 1 votes L 27 / 27 F 0 / 30 R 23 / 24 front 202 fix 9 th -268 kfh 0.0
+at 0 2 d 1 next 1 t 57.681
+cell 0 3 d 1 walls L F R 1 1 1 votes L 24 / 28 F 17 / 17 R 21 / 21 front 43 fix -12 th -265 kfh 0.0
+at 0 3 d 1 next -1 t 59.611
+maze mapped - going to the room
+align front 43 move 5 ms 1
+turn 180 err 3.7 ovs 5.5 ms 1859 tries 3 coast 61
+latfix 11 mm
+align front 45 move 7 ms 221
+turn 85 err 0.9 ovs 5.9 ms 1177 tries 2 coast 50
+align front 46 move 8 ms 211
+turn 95 err 1.3 ovs 8.2 ms 1241 tries 2 coast 64
+align front 209 move -25 ms 836
+turn -91 err 0.2 ovs 0.2 ms 1065 tries 2 coast 48
+align front 222 move -19 ms 792
+turn -90 err -0.7 ovs 0.0 ms 842 tries 1 coast 39
+PIROUETTE at 3 1
+turn -92 err 1.3 ovs 1.3 ms 882 tries 1 coast 41
+spin spot walls 1 d 2
+turn 360 err 1.7 ovs 4.3 ms 2986 tries 2 coast 50
+return [1, 2, 2, 3, 3, 2]
+align front 217 move -13 ms 770
+turn -91 err -0.2 ovs 3.2 ms 1372 tries 3 coast 50
+align front 222 move -20 ms 760
+turn 89 err 2.2 ovs 0.0 ms 765 tries 1 coast 41
+align front 54 move 16 ms 426
+turn 93 err -0.9 ovs 0.9 ms 793 tries 1 coast 36
+align front 46 move 8 ms 477
+turn -87 err 0.7 ovs 0.7 ms 855 tries 1 coast 34
+align front 43 move 5 ms 289
+turn 179 err 1.9 ovs 3.1 ms 1467 tries 2 coast 36
+sprint [0, 1, 1, 0, 0, 3]
+align front 49 move 11 ms 992
+turn 87 err 1.2 ovs 5.8 ms 1122 tries 2 coast 54
+BUMP - backing off
+FRONT GUARD rem 306
+turn 8 err -0.5 ovs 0.5 ms 287 tries 1 coast 57
+sprint None
+done t 114.532
