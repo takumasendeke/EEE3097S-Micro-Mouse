@@ -1,0 +1,110 @@
+S4 BUILD v46 21-Oct 12:00
+maze 6 x 6 side nom 60.0 start ToF L/C/R 334 637 27 slot counts [1, 0, 1, 0, 1] gyro gain 1.0
+maze is on the LEFT of the start heading
+start walls L F R 0 0 1 centred L/R 60.0 60.0
+edge L ow e 9 fix 7 new p 8
+edge undo 7
+cell 1 0 d 0 walls L F R 0 0 1 votes L 0 / 39 F 0 / 40 R 30 / 35 front 411 fix 0 th 6 sa 13
+at 1 0 d 0 next 1 t 4.057
+align front 411 fix 0 move 0 sa 13 ms 3
+turn 83 err 1.8 ovs 0.0 ms 868 tries 1 coast 34
+edge R ow e 25 fix 16 new p 8
+edge L ow e -8 fix -4 new p 8
+edge undo 16
+cell 1 1 d 1 walls L F R 1 1 0 votes L 26 / 27 F 17 / 17 R 0 / 40 front 47 fix -1 th 89 sa 4
+at 1 1 d 1 next 0 t 8.403
+align front 48 fix -1 move 9 sa 3 ms 687
+turn -91 err 2.6 ovs 2.6 ms 873 tries 1 coast 30
+latfix 14 mm corr 7 g 51
+cell 2 1 d 0 walls L F R 1 1 1 votes L 35 / 38 F 18 / 18 R 29 / 29 front 37 fix -8 th -3 sa 4
+at 2 1 d 0 next 2 t 13.489
+align front 37 fix -1 move -1 sa 3 ms 309
+turn 180 err -0.2 ovs 0.2 ms 1491 tries 1 coast 27
+latfix -2 mm corr -6 g 70
+edge L wo e -10 fix -6 map p 8
+seen 1 1 d 2 front 40 fix -7 th 184 sa 3
+at 1 1 d 2 next 3 t 19.161
+align front 40 fix -1 move 0 sa 3 ms 41
+turn 85 err -2.7 ovs 2.7 ms 901 tries 1 coast 36
+latfix -3 mm corr -1 g 49
+edge R wo e -13 fix -11 map p 8
+seen 1 0 d 3 front 57 fix -14 th 269 sa 4
+at 1 0 d 3 next 0 t 23.564
+align front 50 fix -1 move 10 sa 3 ms 299
+turn 89 err 1.1 ovs 0.0 ms 853 tries 1 coast 29
+latfix -6 mm corr -7 g 51
+edge L ow e 6 fix 5 map p 17
+cell 2 0 d 0 walls L F R 1 0 1 votes L 33 / 34 F 0 / 40 R 26 / 26 front 225 fix 0 th 360 sa 14
+at 2 0 d 0 next 0 t 28.197
+edge L wo e -4 fix -4 new p 18
+cell 3 0 d 0 walls L F R 0 1 1 votes L 0 / 40 F 22 / 23 R 32 / 33 front 50 fix -12 th 363 sa 3
+at 3 0 d 0 next 1 t 31.017
+align front 50 fix -3 move 8 sa 3 ms 422
+turn 89 err 1.2 ovs 6.4 ms 1164 tries 2 coast 44
+latfix -12 mm corr -7 g 48
+edge L ow e 1 fix 1 map p 19
+edge R wo e -5 fix -2 new p 19
+cell 3 1 d 1 walls L F R 1 1 0 votes L 31 / 36 F 27 / 27 R 0 / 40 front 39 fix -6 th 458 sa 3
+at 3 1 d 1 next 0 t 36.107
+align front 39 fix -1 move 0 sa 3 ms 6
+turn -98 err -1.1 ovs 0.0 ms 932 tries 1 coast 35
+latfix 15 mm corr 4 g 51
+edge R ow e -14 fix -10 new p 19
+edge undo -10
+cell 4 1 d 0 walls L F R 0 1 0 votes L 0 / 40 F 16 / 16 R 0 / 40 front 32 fix -10 th 360 sa 4
+at 4 1 d 0 next 1 t 40.935
+align front 34 fix -3 move -7 sa 3 ms 967
+turn 89 err 2.0 ovs 7.2 ms 1190 tries 2 coast 49
+latfix -5 mm corr -2 g 50
+edge L ow e -15 fix -13 new p 18
+edge R wo e -17 fix -11 new p 16
+cell 4 2 d 1 walls L F R 1 1 0 votes L 32 / 38 F 27 / 27 R 0 / 40 front 40 fix 2 th 451 sa 3
+at 4 2 d 1 next 0 t 46.622
+align front 40 fix 0 move 3 sa 3 ms 6
+turn -91 err -1.9 ovs 4.2 ms 1152 tries 2 coast 53
+latfix 2 mm corr 0 g 51
+edge R ow e 3 fix 2 new p 18
+edge L wo e 15 fix 8 new p 19
+edge undo 2
+cell 5 2 d 0 walls L F R 0 1 0 votes L 0 / 40 F 26 / 26 R 0 / 40 front 44 fix -6 th 361 sa 3
+at 5 2 d 0 next 1 t 50.898
+align front 44 fix -1 move 4 sa 3 ms 382
+turn 90 err 0.3 ovs 3.8 ms 1076 tries 2 coast 55
+latfix -7 mm corr -4 g 51
+edge L ow e -10 fix -9 new p 17
+edge undo -9
+cell 5 3 d 1 walls L F R 0 1 1 votes L 0 / 40 F 24 / 24 R 29 / 29 front 48 fix -22 th 452 sa 3
+at 5 3 d 1 next 2 t 56.851
+align front 48 fix -3 move 5 sa 3 ms 418
+turn 91 err 0.1 ovs 5.6 ms 1090 tries 2 coast 50
+latfix -8 mm corr -4 g 51
+edge L ow e 14 fix 11 map p 16
+cell 4 3 d 2 walls L F R 1 1 1 votes L 34 / 35 F 16 / 16 R 34 / 35 front 36 fix -3 th 545 sa 4
+at 4 3 d 2 next 0 t 61.832
+align front 38 fix -2 move -1 sa 3 ms 324
+turn 179 err -1.8 ovs 1.8 ms 1742 tries 1 coast 47
+latfix -3 mm corr -10 g 69
+edge R wo e -10 fix -7 map p 18
+seen 5 3 d 0 front 40 fix -4 th 721 sa 4
+at 5 3 d 0 next 3 t 67.764
+align front 38 fix -1 move 0 sa 3 ms 741
+turn -91 err -1.3 ovs 9.4 ms 1245 tries 2 coast 66
+latfix 11 mm corr 4 g 51
+pass 5 2
+edge R ow e -6 fix -5 map p 19
+cell 5 1 d 3 walls L F R 1 0 1 votes L 21 / 40 F 6 / 40 R 11 / 15 front 126 fix 0 th 613 sa 14
+at 5 1 d 3 next 3 t 75.493
+cell 5 0 d 3 walls L F R 0 1 1 votes L 16 / 40 F 23 / 40 R 12 / 13 front 92 fix -55 th 611 sa 3
+at 5 0 d 3 next 1 t 79.338
+align front 92 fix 0 move 54 sa 4 ms 739
+turn 202 err 0.1 ovs 4.9 ms 2890 tries 2 coast 61
+latfix -1 mm corr -19 g 66
+pass 5 1
+BUMP - backing off
+seen 5 1 d 1 front 53 fix 0 th 818 sa 23
+at 5 1 d 1 next -1 t 90.754
+no room found
+return None
+align front 48 fix 0 move -57 sa 25 ms 811
+turn -90 err -1.5 ovs 3.1 ms 1272 tries 3 coast 48
+done t 98.637
