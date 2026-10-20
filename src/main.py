@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v16 19-Oct 20:00"
+BUILD = "v17 19-Oct 22:00"
 
 try:
     import math
@@ -85,13 +85,24 @@ HW_ALIGN_MOVE     = 1           # 1 = align to the front wall with ONE encoder m
 HW_ARCS           = 0           # 0 = return/sprint stop and turn on the spot at corners (safest)
 HW_KEEP_IW        = 1           # 1 = keep the learned L/R motor-imbalance trim across stops (anti-veer)
 HW_STOP_FIX       = 1           # 1 = at each cell stop, a wall seen ahead (<500 mm) fixes the along position
+# Real chassis: 105 mm long, front ToF 65 mm ahead of the axle, so turning on the
+# spot the front corners sweep ~86 mm round the axle against ~94 mm to a wall.
+HW_PIVOT_BACK     = 12.0        # mm: with a wall ahead, turn this far short of the cell centre
+HW_REVERSE_OUT    = 1           # 1 = leave dead ends backwards (no 180 deg spin between three walls)
+HW_REV_HOME       = 1           # 1 = drive the last straight of the return backwards (no spin in the start cell)
+HW_SPIN_SHIFT     = 15.0        # mm: step this far off a wall before a spin that would swing into it
+HW_V_REVERSE      = 150.0       # mm/s top speed backwards
+HW_SENSE_STEPS    = 30          # 10 ms steps of standing-still wall sensing in a NEW cell
+HW_SKIP_SEEN      = 1           # 1 = cells already mapped: no wall sensing, just a quick front fix
+HW_WALL_STOP      = 1           # 1 = stopping at a cell with a wall ahead, brake on the front ToF too
+HW_ZUPT_STOP      = 1           # 1 = re-estimate the gyro bias while standing still (both wheels dead still)
 HW_FRONT_CENTER   = 34.0        # mm: front reading with the axle on the cell centre (log: 32)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
 HW_FRONT_SNAP     = 30.0        # mm: front fix only if within this of a wall line
 HW_TOF_SIGMA      = 15.0        # mm, KF measurement noise (measured spread ~20-70)
-HW_V_EXPLORE      = 160.0       # mm/s  EXPLORE SPEED
+HW_V_EXPLORE      = 200.0       # mm/s  EXPLORE SPEED
 HW_V_RETURN       = 250.0       # mm/s
 HW_V_SPRINT       = 330.0       # mm/s  SPRINT SPEED. Down if it wanders.
 HW_V_TURN         = 170.0       # mm/s through smooth 90 deg arcs
@@ -171,6 +182,15 @@ ALIGN_MOVE = 0
 ARCS = 1
 KEEP_IW = 0
 STOP_FIX = 0
+PIVOT_BACK = 0.0
+REVERSE_OUT = 0
+REV_HOME = 0
+SPIN_SHIFT = 0.0
+V_REVERSE = 150.0
+SENSE_STEPS = 40
+SKIP_SEEN = 0
+WALL_STOP = 0
+ZUPT_STOP = 0
 FRONT_CENTER = 35.0             # sim: 100 - FRONT_OFF
 TILT_LIM = 0.0
 SIDE_GUARD = 0.0                # mm: steer away below this (board only; sim never needs it)
@@ -244,6 +264,7 @@ def select_profile():
     global V_SPRINT, V_TURN, ACCEL, W_TURN, ALPHA_TURN, TURN_TOL, KP_V, KI_V, KP_W, KI_W
     global DEBUG, FRONT_STOP, FRONT_CENTER, TILT_LIM, KF_HEADING, STOP_EACH, WALL_K, GYRO_TRIM, TEST_STRAIGHT, SIDE_AUTO, SIDE_GUARD, TPMM_AUTO, FRONT_SNAP, GYRO_AUTO, ROOM_MAX_DOORS, VMAX_L, VMAX_R, SYSID
     global FRONT_REACT, FRONT_CHECK, TURN_LEAD, TURN_KLIN, TURN_WMIN, ALIGN_MOVE, ARCS, KEEP_IW, STOP_FIX
+    global PIVOT_BACK, REVERSE_OUT, REV_HOME, SPIN_SHIFT, V_REVERSE, SENSE_STEPS, SKIP_SEEN, WALL_STOP, ZUPT_STOP
     IS_SIM = on_simulator()
     if IS_SIM == 1:
         return
@@ -257,6 +278,15 @@ def select_profile():
     ARCS = HW_ARCS
     KEEP_IW = HW_KEEP_IW
     STOP_FIX = HW_STOP_FIX
+    PIVOT_BACK = HW_PIVOT_BACK
+    REVERSE_OUT = HW_REVERSE_OUT
+    REV_HOME = HW_REV_HOME
+    SPIN_SHIFT = HW_SPIN_SHIFT
+    V_REVERSE = HW_V_REVERSE
+    SENSE_STEPS = HW_SENSE_STEPS
+    SKIP_SEEN = HW_SKIP_SEEN
+    WALL_STOP = HW_WALL_STOP
+    ZUPT_STOP = HW_ZUPT_STOP
     MOT_POL_L = HW_MOTOR_POL_L
     MOT_POL_R = HW_MOTOR_POL_R
     ENC_POL_L = HW_ENC_POL_L
@@ -616,6 +646,8 @@ class Mouse:
         self.rR = [8190, 8190, 8190]
         self.mL = 8190          # their median: one stray echo cannot kick the steering
         self.mR = 8190
+        self.rC = [8190, 8190, 8190]    # last three valid front readings
+        self.mC = 8190
         self.iw_fwd = 0.0       # learned L/R imbalance trim for straight driving
         self.vote = (0, 0, 0, 0)        # last stationary side vote: (vl, nl, vr, nr)
         self.fmed = 8190        # median front reading from the last stationary vote
@@ -625,6 +657,8 @@ class Mouse:
         self.lost = 0
         self.vfront = (0, 0)
         self.a_goal = 1e9       # along-position where the current move plans to stop
+        self.sLm = 0            # median side wall readings of the last stationary look (0 = none)
+        self.sRm = 0
 
     # ---- sensing --------------------------------------------------------
     def now(self):
@@ -710,8 +744,53 @@ class Mouse:
             self.aC = 0
             self.fC = self.dC if self.dC > self.pC else self.pC
             self.pC = self.dC
+            r = self.rC
+            r[0] = r[1]
+            r[1] = r[2]
+            r[2] = self.dC
+            self.mC = med3(r[0], r[1], r[2])
         else:
             self.aC += 1
+
+    # Distance still to go before stopping at along-position a_end, from the
+    # front ToF, when it sees a wall on the front edge of that cell (median
+    # of three readings, so a stray echo cannot cut it short). Odometry drifts
+    # over a long straight; this ends the stop where the wall actually is.
+    def wall_rem(self, a_end):
+        if not WALL_STOP or self.aC >= 6 or self.mC > 250:
+            return 1e9
+        d = self.d
+        bs = a_end + CELL / 2.0
+        tol = 45.0
+        bw = self.mapped_wall(d)
+        if bw is not None:
+            if fabs(bw - bs) > 1.0:
+                return 1e9              # the mapped wall ahead is not at this stop's edge
+            tol = 90.0                  # mapped wall exactly there: trust the reading
+        elif self.known_open(d, bs):
+            return 1e9                  # the map knows that edge is open
+        b = self.along(d) + self.mC - FRONT_CENTER + CELL / 2.0
+        if fabs(b - bs) > tol:
+            return 1e9
+        return self.mC - FRONT_CENTER
+
+    # Is the cell boundary at along-position bs (axis d) known to be open?
+    def known_open(self, d, bs):
+        sv = self.solver
+        if sv is None:
+            return 0
+        ac = bs - CELL / 2.0            # along-position of the cell before that boundary
+        if d & 1:
+            cx = int(self.X / CELL)
+            cy = int(DY[d] * ac / CELL)
+        else:
+            cx = int(DX[d] * ac / CELL)
+            cy = int(self.Y / CELL)
+        if not sv.inside(cx, cy):
+            return 0
+        i = cy * sv.cols + cx
+        b = 1 << d
+        return 1 if ((sv.known[i] & b) and not (sv.wall[i] & b)) else 0
 
     # Front reflex: a wall the front ToF has confirmed is closer than the
     # distance needed to stop from the current speed.
@@ -726,7 +805,7 @@ class Mouse:
         # A wall at the front edge of the cell the move stops in is expected:
         # the speed profile already stops for it, so only the last-resort
         # distance applies (the speed term made it brake 20-35 mm short).
-        if aw > self.a_goal + CELL / 2.0 - 40.0 and self.fC >= FRONT_STOP:
+        if aw > self.a_goal + CELL / 2.0 - 40.0 and self.fC >= FRONT_STOP + 0.5 * FRONT_REACT * v:
             return 0
         # Walls stand only on cell boundaries, and a boundary the map already
         # knows is open cannot be one: such short readings are the ToF's
@@ -906,28 +985,126 @@ class Mouse:
         else:
             vals = []
             n = 0
-            while n < 30 and len(vals) < 7:
+            while n < 40 and len(vals) < 11:
                 self.step(0.0, 0.0)
                 if self.dC < 8190:
                     vals.append(self.dC)
                 n += 1
-            if len(vals) >= 3:
+            if len(vals) >= 5:
                 vals.sort()
                 f = vals[len(vals) // 2]
         if f > 500:
             return                      # no wall in reach ahead
         c = self.cell_along(self.cx, self.cy, d)
         if not (self.fmed_ok and STOP_FIX):     # (stop_fix already used this reading)
-            b = self.along(d) + f - FRONT_CENTER + CELL / 2.0
-            e = CELL * float(round(b / CELL)) - b
-            if fabs(e) < 45.0:
+            e = self.wall_err(f)
+            if e is not None:
                 g = 1.0 if f < 150 else (0.6 if f < 300 else 0.4)
-                self.X += DX[d] * g * e
-                self.Y += DY[d] * g * e
+                e = clamp(g * e, -25.0, 25.0)
+                self.X += DX[d] * e
+                self.Y += DY[d] * e
+        if f < 130.0:
+            c -= PIVOT_BACK             # wall right ahead: keep the swinging nose clear of it
         mv = c - self.along(d)
-        if fabs(mv) > 3.0:
+        if fabs(mv) > 5.0:
             self.move_to(d, c)
         log("align front", f, "move", int(mv), "ms", self.now() - t0)
+
+    # Gyro bias from samples taken with BOTH wheels dead still (a turn that
+    # is still unwinding has zero forward motion but is still rotating).
+    def zupt_add(self, gs, gn):
+        if ZUPT_STOP and gn >= 12:
+            e = gs / gn
+            if fabs(e) < 2.0:
+                self.bias += 0.5 * e * GYRO_GAIN
+
+    # Median of the valid front readings standing still (for stop_fix).
+    def front_median(self, steps):
+        vals = []
+        gs = 0.0
+        gn = 0
+        pel = self.el
+        per = self.er
+        n = 0
+        while n < steps:
+            self.step(0.0, 0.0)
+            if n >= 6 and self.el == pel and self.er == per:
+                gs += self.rate_p
+                gn += 1
+            pel = self.el
+            per = self.er
+            if self.dC < 8190:
+                vals.append(self.dC)
+            n += 1
+        self.zupt_add(gs, gn)
+        self.fmed = 8190
+        if len(vals) >= 3:
+            vals.sort()
+            self.fmed = vals[len(vals) // 2]
+        self.fmed_ok = 1
+
+    # Drive backwards (still facing f) to along-position a_end on axis f.
+    # Same corridor tracking as forwards, with the lateral steering reversed.
+    def reverse_to(self, f, latc, a_end, vmax):
+        self.d = f
+        if vmax > V_REVERSE:
+            vmax = V_REVERSE
+        self.vc = 0.0
+        self.a_goal = 1e9
+        n = 0
+        while n < 3000:
+            rem = self.along(f) - a_end
+            if rem <= -self.v * TAU * 0.5 + 1.0:
+                break
+            vc = self.profile(rem, 0.0, vmax)
+            lat = self.lateral(f) - latc
+            psi = wrap180(self.th - 90.0 * f) * D2R
+            pref = clamp(KLAT * lat, -PSI_MAX, PSI_MAX)     # backwards: steer the other way
+            w = clamp(KPSI * (pref - psi) / D2R, -120.0, 120.0)
+            if SIDE_GUARD > 0.0:
+                # side reflex, reversed: backing away from a close wall needs
+                # the nose turned TOWARDS it
+                gr = self.mR - NOM_R + SIDE_NOM
+                gl = self.mL - NOM_L + SIDE_NOM
+                if self.aR < 6 and gr < SIDE_GUARD:
+                    w -= clamp(5.0 * (SIDE_GUARD - gr), 0.0, 120.0)
+                if self.aL < 6 and gl < SIDE_GUARD:
+                    w += clamp(5.0 * (SIDE_GUARD - gl), 0.0, 120.0)
+            self.step(-vc, w)
+            self.kf(latc)
+            self.front_fix()
+            n += 1
+        self.settle()
+        self.vc = 0.0
+
+    # Before the pirouette: step away from this cell's walls so the corners
+    # (sweeping ~86 mm round the axle) clear them. The 90 deg turn used for
+    # a side wall faces an open side, so nothing is in reach while it turns.
+    def spin_spot(self, sv):
+        if SPIN_SHIFT <= 0.0:
+            return -1
+        i = self.cy * sv.cols + self.cx
+        d = self.d
+        b = (d + 2) & 3
+        wf = sv.wall[i] & (1 << d)
+        wb = sv.wall[i] & (1 << b)
+        c = self.cell_along(self.cx, self.cy, d)
+        if wf and not wb:
+            self.move_to(d, c - SPIN_SHIFT)
+        elif wb and not wf:
+            self.move_to(d, c + SPIN_SHIFT)
+        lt = (d + 1) & 3
+        rt = (d + 3) & 3
+        s = -1
+        if (sv.wall[i] & (1 << lt)) and not (sv.wall[i] & (1 << rt)):
+            s = rt
+        elif (sv.wall[i] & (1 << rt)) and not (sv.wall[i] & (1 << lt)):
+            s = lt
+        if s >= 0:
+            self.turn_to(s)
+            self.move_to(s, self.cell_along(self.cx, self.cy, s) + SPIN_SHIFT)
+        log("spin spot walls", sv.wall[i], "d", self.d)
+        return s
 
     # Short straight move to along-position a_end on the encoders only
     # (forwards or backwards), holding the heading of axis d.
@@ -955,6 +1132,8 @@ class Mouse:
     def front_check(self, steps):
         fs = 0
         fo = 0
+        sl = []
+        sr = []
         n = 0
         while n < steps:
             self.step(0.0, 0.0)
@@ -963,8 +1142,19 @@ class Mouse:
                     fs += 1
                 else:
                     fo += 1
+            if self.dL < SIDE_WALL:
+                sl.append(self.dL)
+            if self.dR < SIDE_WALL:
+                sr.append(self.dR)
             n += 1
-        return 1 if (fs > fo and fs >= 2) else 0
+        self.side_medians(sl, sr)
+        return 1 if (fs >= 3 and fs > 2 * fo) else 0     # clear majority: strays cannot fake a wall
+
+    def side_medians(self, sl, sr):
+        sl.sort()
+        sr.sort()
+        self.sLm = sl[len(sl) // 2] if len(sl) >= 3 else 0
+        self.sRm = sr[len(sr) // 2] if len(sr) >= 3 else 0
 
     # At a cell stop, right after the stationary vote: a wall seen ahead
     # (median of ~20 readings, so stray echoes are outvoted) fixes the
@@ -975,15 +1165,52 @@ class Mouse:
         f = self.fmed
         if not STOP_FIX or not self.fmed_ok or f > 500:
             return 0
-        d = self.d
-        b = self.along(d) + f - FRONT_CENTER + CELL / 2.0     # implied wall line
-        e = CELL * float(round(b / CELL)) - b
-        if fabs(e) > 45.0:
+        e = self.wall_err(f)
+        if e is None:
             return 0
+        d = self.d
         g = 1.0 if f < 150 else (0.6 if f < 300 else 0.4)
-        self.X += DX[d] * g * e
-        self.Y += DY[d] * g * e
-        return int(g * e)
+        e = clamp(g * e, -30.0, 30.0)
+        self.X += DX[d] * e
+        self.Y += DY[d] * e
+        return int(e)
+
+    # Along-track error implied by a front reading f of the wall ahead.
+    # Matched against the map first: the first known wall straight ahead
+    # (through known-open edges) is the one the sensor sees, so a reading
+    # within +-90 mm of it is trusted even after odometry has drifted far
+    # (start-up wheel slip adds ~8 mm per cell). With no mapped wall ahead,
+    # snap to the nearest cell edge within +-45 mm. None = no usable fix.
+    def wall_err(self, f):
+        d = self.d
+        b = self.along(d) + f - FRONT_CENTER + CELL / 2.0      # implied wall line
+        bw = self.mapped_wall(d)
+        if bw is not None:
+            e = bw - b
+            return e if fabs(e) < 90.0 else None
+        e = CELL * float(round(b / CELL)) - b
+        return e if fabs(e) < 45.0 else None
+
+    # Along-position of the first known wall straight ahead of cell (cx, cy)
+    # on axis d, if every edge before it is known open; else None.
+    def mapped_wall(self, d):
+        sv = self.solver
+        if sv is None:
+            return None
+        x = self.cx
+        y = self.cy
+        b = 1 << d
+        k = 0
+        while k < 5 and sv.inside(x, y):
+            i = y * sv.cols + x
+            if not (sv.known[i] & b):
+                return None
+            if sv.wall[i] & b:
+                return self.cell_along(x, y, d) + CELL / 2.0
+            x += DX[d]
+            y += DY[d]
+            k += 1
+        return None
 
     # Stop and wait until the wheels are really still.
     def settle(self):
@@ -1332,6 +1559,64 @@ class Mouse:
         self.p22 += 0.0005      # yaw slide when the wheels stop
         self.p11 += 25.0
 
+    # Turn on the spot to heading nd without swinging the nose into a wall.
+    # Spinning, the two FRONT corners swing out (~86 mm) only on the side
+    # the mouse turns towards (and ahead / behind); the other side only meets
+    # the short rear corners (~61 mm). So: 90s go towards an opening as
+    # usual; a 180 turns towards the open side; a 90 that would face a wall
+    # first faces the open opposite side and steps along it.
+    def safe_turn(self, nd):
+        sv = self.solver
+        d = self.d
+        if nd == d or SPIN_SHIFT <= 0.0 or sv is None or not sv.inside(self.cx, self.cy):
+            self.turn_to(nd)
+            return
+        w = sv.wall[self.cy * sv.cols + self.cx]
+        if nd == ((d + 2) & 3):
+            self.turn_180(w)
+        elif (w & (1 << nd)) and not (w & (1 << ((nd + 2) & 3))):
+            o = (nd + 2) & 3
+            self.turn_to(o)
+            self.move_to(o, self.cell_along(self.cx, self.cy, o) + SPIN_SHIFT)
+            self.turn_180(w)
+            log("safe turn via", o)
+        else:
+            self.turn_to(nd)
+
+    # 180 on the spot, turning towards the open side (w = this cell's walls).
+    def turn_180(self, w):
+        d = self.d
+        lt = (d + 1) & 3
+        rt = (d + 3) & 3
+        if (w & (1 << ((d + 2) & 3))) and not (w & (1 << d)):
+            # the back is swept too: step off a wall behind first
+            self.move_to(d, self.cell_along(self.cx, self.cy, d) + SPIN_SHIFT)
+        if (w & (1 << rt)) and not (w & (1 << lt)):
+            sg = 1.0                    # CCW: swings over the open left
+        elif (w & (1 << lt)) and not (w & (1 << rt)):
+            sg = -1.0
+        else:
+            if (w & (1 << lt)) and (w & (1 << rt)):
+                self.front_check(15)    # fresh side readings to pick the roomier side
+            sg = 1.0
+            if self.sLm and self.sRm and (self.sLm - NOM_L) < (self.sRm - NOM_R):
+                sg = -1.0               # both walls: away from the nearer one
+        nd = (d + 2) & 3
+        delta = 90.0 * nd - self.th
+        while sg > 0.0 and delta <= 0.0:
+            delta += 360.0
+        while sg < 0.0 and delta >= 0.0:
+            delta -= 360.0
+        while delta > 270.0:
+            delta -= 360.0
+        while delta < -270.0:
+            delta += 360.0
+        self.turn_by(delta)
+        self.d = nd
+        self.p12 = 0.0
+        if self.p11 < 100.0:
+            self.p11 = 100.0
+
     def turn_to(self, nd):
         delta = wrap180(90.0 * nd - self.th)
         if fabs(delta) < 3.0:
@@ -1444,13 +1729,30 @@ class Mouse:
                         fs += 1
                     else:
                         fo += 1
+            if STOP_EACH and SKIP_SEEN and not decided and rel >= CELL * k - DECIDE_AHEAD:
+                # stop-each mode: a cell already mapped needs no stop - if the
+                # planner carries straight on through it, keep driving (every
+                # restart's wheel slip would cost along-track accuracy)
+                decided = 1
+                x1 = x0 + DX[d] * k
+                y1 = y0 + DY[d] * k
+                if solver.inside(x1, y1):
+                    i1 = y1 * solver.cols + x1
+                    rm = solver.room
+                    if solver.visited[i1] and not (rm is not None and i1 in rm) \
+                            and solver.is_open(i1, d, 0) and solver.next_dir(x1, y1, d) == d:
+                        log("pass", x1, y1)
+                        goal = k + 1
+                        k += 1
+                        decided = 0
             if not decided and not STOP_EACH and rel >= CELL * k - DECIDE_AHEAD:
                 # wall = short readings outnumber long ones AND appear in at
                 # least a quarter of all samples (stray short echoes do not)
                 wl = 1 if (2 * vl > nl and vl >= 2 and 4 * vl >= tl) else 0
                 wr = 1 if (2 * vr > nr and vr >= 2 and 4 * vr >= tl) else 0
                 wf = 1 if (fs > fo and fs >= 2 and 4 * fs >= tl) else 0
-                wl, wr = self.side_check(wl, wr)
+                self.vote = (vl, nl, vr, nr)
+                wl, wr = self.side_check(wl, wr, wf)
                 nd = record_cell(solver, x0 + DX[d] * k, y0 + DY[d] * k, d, wl, wf, wr)
                 if DEBUG:
                     log("cell", x0 + DX[d] * k, y0 + DY[d] * k, "d", d, "ToF L/C/R", self.dL, self.dC, self.dR,
@@ -1470,6 +1772,9 @@ class Mouse:
                     tl = 0
             rem = CELL * goal - rel
             self.a_goal = a0 + CELL * goal
+            r2 = self.wall_rem(self.a_goal)
+            if r2 < rem:
+                rem = r2
             if rem <= self.v * TAU * 0.5 + 1.0:
                 break
             if 0 < self.dC < 15:
@@ -1515,6 +1820,10 @@ class Mouse:
         n = 0
         while n < 3000:
             rem = a_end - self.along(d)
+            if v_end == 0.0:
+                r2 = self.wall_rem(a_end)
+                if r2 < rem:
+                    rem = r2
             if v_end > 0.0:
                 if rem <= 0.0:
                     break
@@ -1588,18 +1897,28 @@ class Mouse:
     # heading, then straights merged into single profiles joined by arcs.
     # Returns 1 when the path was completed, 0 when a front guard stopped it
     # (the mouse is then stopped in cell (cx, cy) and the caller replans).
-    def follow(self, moves, vmax, vturn):
+    def follow(self, moves, vmax, vturn, rev_last=0):
         if not moves:
             return 1
-        if moves[0] != self.d:
+        nmv = len(moves)
+        ls = nmv - 1                    # first move of the last straight
+        while ls > 0 and moves[ls - 1] == moves[nmv - 1]:
+            ls -= 1
+        rl = 1 if (rev_last and REV_HOME) else 0
+        # backwards: a first straight leading the way the mouse faces away
+        # from, and (rev_last) the last straight, so it ends facing back
+        rb = 1 if (REVERSE_OUT and moves[0] == ((self.d + 2) & 3)) else 0
+        if rl and ls == 0:
+            rb = 1
+        f0 = ((moves[0] + 2) & 3) if rb else moves[0]
+        if f0 != self.d:
             self.align_front()
-        self.turn_to(moves[0])
+        self.safe_turn(f0)
         self.vc = 0.0
         self.lost = 0
         x = self.cx
         y = self.cy
         i = 0
-        nmv = len(moves)
         while i < nmv:
             d = moves[i]
             j = i
@@ -1609,7 +1928,18 @@ class Mouse:
             ey = y + DY[d] * (j - i)
             latc = self.cell_lat(x, y, d)
             ce = self.cell_along(ex, ey, d)
-            if ARCS and j < nmv and moves[j] != ((d + 2) & 3):
+            nf = moves[j] if j < nmv else 0
+            if rl and j == ls:
+                nf = (nf + 2) & 3       # next straight is the reversed last one
+            if (i == 0 and rb) or (rl and i == ls):
+                fb = (d + 2) & 3
+                self.reverse_to(fb, self.cell_lat(x, y, fb), self.cell_along(ex, ey, fb), vmax)
+                if j < nmv:
+                    self.cx = ex
+                    self.cy = ey
+                    self.align_front()
+                    self.safe_turn(nf)
+            elif ARCS and j < nmv and moves[j] != ((d + 2) & 3):
                 self.straight(d, latc, ce - CELL / 2.0, vturn, vmax)
                 if self.lost:
                     break
@@ -1624,7 +1954,7 @@ class Mouse:
                     self.cx = ex
                     self.cy = ey
                     self.align_front()
-                    self.turn_to(moves[j])
+                    self.safe_turn(nf)
             x = ex
             y = ey
             i = j
@@ -1670,7 +2000,7 @@ class Mouse:
             if wl == 1 and wr == 0:
                 vl, nl, vr, nr = self.vote
                 # (a weak vote is still taken when right is the only way on)
-                if STOP_EACH and not wf and not (nr >= 3 and 3 * vr <= nr and vl >= 3 and 4 * vl >= 3 * nl):
+                if FRONT_STOP > 0.0 and not wf and not (nr >= 3 and 3 * vr <= nr and vl >= 3 and 4 * vl >= 3 * nl):
                     log("side: weak right opening", vl, nl, vr, nr, "- not mirroring yet")
                     return wl, wr
                 SIDE_AUTO = 0
@@ -1694,9 +2024,18 @@ class Mouse:
         sl = []
         sr = []
         sc = []
+        gs = 0.0
+        gn = 0
+        pel = self.el
+        per = self.er
         n = 0
         while n < steps:
             self.step(0.0, 0.0)
+            if n >= 6 and self.el == pel and self.er == per:
+                gs += self.rate_p       # wheels dead still: the gyro should read zero
+                gn += 1
+            pel = self.el
+            per = self.er
             if self.dL < 8190:
                 nl += 1
                 if self.dL < SIDE_WALL:
@@ -1724,6 +2063,9 @@ class Mouse:
             self.fmed = sc[len(sc) // 2]
         self.fmed_ok = 1
         self.vfront = (fs, fs + fo)
+        self.side_medians(list(sl), list(sr))
+        if not calib:
+            self.zupt_add(gs, gn)
         if calib and wl and wr:
             # each sensor's own centred reading: VL53L0X units differ by 10-20
             # mm, and a shared value makes one-wall centring pull to one side
@@ -1838,10 +2180,30 @@ def mission():
     moves_left = 6 * solver.n
     while nd >= 0 and moves_left > 0:
         moves_left -= 1
+        bk = (m.d + 2) & 3
+        if REVERSE_OUT and nd == bk:
+            bx = m.cx + DX[bk]
+            by = m.cy + DY[bk]
+            if solver.inside(bx, by) and solver.visited[by * solver.cols + bx]:
+                # dead end: back out to the known cell behind instead of
+                # spinning 180 deg between three walls
+                m.reverse_to(m.d, m.cell_lat(m.cx, m.cy, m.d), m.cell_along(bx, by, m.d), V_EXPLORE)
+                m.cx = bx
+                m.cy = by
+                fx = 0
+                if STOP_FIX:
+                    m.front_median(20)
+                    fx = m.stop_fix()
+                i = m.cy * solver.cols + m.cx
+                room = solver.check_room()
+                nd = -2 if (room is not None and i in room) else solver.next_dir(m.cx, m.cy, m.d)
+                log("reverse to", m.cx, m.cy, "d", m.d, "front", m.fmed, "fix", fx, "next", nd,
+                    "t", (m.now() - m.t0) / 1000.0)
+                continue
         if nd != m.d:
             m.align_front()
-            m.turn_to(nd)
-            if STOP_EACH and FRONT_CHECK > 0 and m.front_check(FRONT_CHECK):
+            m.safe_turn(nd)
+            if FRONT_CHECK > 0 and m.front_check(FRONT_CHECK):
                 # facing a wall the map called open (misread or bad turn):
                 # never drive into it - mark it and choose again
                 solver.set_wall(m.cx, m.cy, m.d, 1)
@@ -1849,9 +2211,13 @@ def mission():
                 log("FRONT CHECK: wall ahead after turn, next", nd)
                 continue
         m.explore_drive(solver, V_EXPLORE)
-        if STOP_EACH:
+        if STOP_EACH and SKIP_SEEN and solver.visited[m.cy * solver.cols + m.cx]:
+            # mapped already: only a quick look ahead to fix the position
+            m.front_median(30)
+            log("seen", m.cx, m.cy, "d", m.d, "front", m.fmed, "fix", m.stop_fix(), "th", int(m.th))
+        elif STOP_EACH:
             # stopped on the new cell's centre: sense standing still, then plan
-            wl, wf, wr = m.still_walls(40, 0)
+            wl, wf, wr = m.still_walls(SENSE_STEPS, 0)
             fx = m.stop_fix()
             wl, wr = m.side_check(wl, wr, wf)
             record_cell(solver, m.cx, m.cy, m.d, wl, wf, wr)
@@ -1870,13 +2236,16 @@ def mission():
     else:
         # ---------------- Phase 2: pirouette (clockwise) ----------------
         log("PIROUETTE at", m.cx, m.cy)
+        s = m.spin_spot(solver)
         m.turn_by(-360.0 * SIDE)
+        if s >= 0:
+            m.move_to(s, m.cell_along(m.cx, m.cy, s))     # back to the centre line
     # ---------------- Phase 3: return to start ----------------
     k = 0
     while k < 4:
         moves = solver.plan(m.cx, m.cy, m.d, [0])
         log("return", moves)
-        if not moves or m.follow(moves, V_RETURN, V_TURN):
+        if not moves or m.follow(moves, V_RETURN, V_TURN, 1):
             break
         k += 1                          # a front guard stopped it: replan from here
     m.turn_to(0)
