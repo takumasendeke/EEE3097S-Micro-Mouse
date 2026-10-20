@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v48 21-Oct 19:00"
+BUILD = "v49 21-Oct 20:00"
 
 try:
     import math
@@ -67,8 +67,8 @@ HW_GYRO_GAIN      = 1.0         # measured: 360 deg by hand reads +360 (0 = auto
 HW_CAL_SAMPLES    = 150         # start-up gyro samples (mouse still)
 HW_VMAX           = 498.0       # mm/s at PWM 100, LEFT wheel (diag: 6.23 mm/s per PWM x (100-20))
 HW_TAU            = 0.06        # s, motor lag used for accel feed-forward
-HW_MAZE_ROWS      = 0           # 0 = ask uct_mouse.get_maze_dimensions()
-HW_MAZE_COLS      = 0           # (board uses a square grid of the larger side)
+HW_MAZE_ROWS      = 4           # lab maze: 4 cells to the side (0 = ask uct_mouse.get_maze_dimensions(); the board says 6x6)
+HW_MAZE_COLS      = 6           # ... and 6 along the start heading (East). Known outer walls: a misread there cannot send it out
 HW_ARENA_SIDE     = 0           # 0 = detect from the first side opening (+1 maze on the LEFT of the start heading, -1 RIGHT)
 HW_SIDE_X         = 50.0        # mm side ToF ahead of the axle
 HW_FRONT_OFF      = 57.0        # mm front ToF ahead of the axle (info only: the code uses CELL/2 - HW_FRONT_CENTER)
@@ -82,7 +82,7 @@ HW_VMAX_R         = 412.0       # RIGHT wheel (diag 424; a touch lower = a littl
 HW_TURN_LATFIX    = 1           # 1 = after every turn, set the sideways position from still side readings before driving
 HW_PSI_MAX        = 0.07        # rad (~4 deg): max angle it steers to recentre (sim 0.14 ~8 deg = the bends/drift)
 HW_KLAT           = 0.010       # rad heading per mm off-centre (0.012 + noisy sides steered it up to 8 deg)
-HW_SIDE_OFFSET    = 9.0         # mm: + moves the centre line RIGHT (12 + latfix pushed the right wheel into walls)
+HW_SIDE_OFFSET    = 0.0         # mm: + moves the centre line RIGHT. v47 log: after line-ups latfix read +4.5 on BOTH walls = exactly 9/2, so 9 drove it 4.5 mm right all run (both crashes: right-side posts)
 
 HW_STOP_EACH_CELL = 1           # 1 = stop at every cell centre and sense walls standing still
 HW_SIDE_GUARD     = 35.0        # mm side reflex (25 let it drift onto the prongs - back to 35)
@@ -837,6 +837,7 @@ class Mouse:
         self.nom_n = 0          # still looks that measured the centred side reading
         self.nom_log = 0.0
         self.pin = 0            # steps driven with the heading stuck far off (corner caught on a post)
+        self.slip = 0           # steps the wheels and the gyro disagreed on the turn rate
 
     # ---- sensing --------------------------------------------------------
     def now(self):
@@ -2116,7 +2117,7 @@ class Mouse:
                 return
         else:
             prov = 1
-        c = self.abs_fix(e, 6.0)
+        c = self.abs_fix(e, 9.0)        # v47 log: edge positions scatter ~10 mm
         if prov:
             if len(self.epend) < 4:
                 self.epend.append((ca, bit, want, d, c, ae - bnd))
@@ -2396,9 +2397,26 @@ class Mouse:
                 if self.pin > 30:
                     self.pin = 0
                     self.bump = 1
+                    self.sa0 = 40.0     # the wheels slipped: along position unknown
+                    self.odo = 0.0
                     log("PINNED - heading stuck at", int(psi / D2R))
             else:
                 self.pin = 0
+            # wheels and gyro disagree on the turn rate for 0.2 s: a wheel is
+            # held or slipping (v47: corner on the room's centre post - the
+            # encoders counted a cell, the mouse moved 75 mm). Caught early,
+            # before the position is far off.
+            ew = (self.vrw - self.vlw) / (2.0 * HALF_AXLE * D2R)
+            if vc > 30.0 and fabs(ew - self.rate_p) > 45.0:
+                self.slip += 1
+                if self.slip > 20:
+                    self.slip = 0
+                    self.bump = 1
+                    self.sa0 = 40.0
+                    self.odo = 0.0
+                    log("SLIP - wheels", int(ew), "gyro", int(self.rate_p), "deg/s")
+            else:
+                self.slip = 0
         pref = clamp(-KLAT * lat, -PSI_MAX, PSI_MAX)
         w = clamp(KPSI * (pref - psi) / D2R, -120.0, 120.0)
         if WALL_K > 0.0:
