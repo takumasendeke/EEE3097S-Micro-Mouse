@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v17 19-Oct 22:00"
+BUILD = "v18 20-Oct 13:00"
 
 try:
     import math
@@ -58,8 +58,10 @@ HW_MOTOR_POL_L    = 1             # flipped for the Oct-2026 MicroPython firmwar
 HW_MOTOR_POL_R    = 1
 HW_ENC_POL_L      = -1
 HW_ENC_POL_R      = 1
+
 HW_LEFT_DEADBAND  = 61.0        # rolling threshold from pwm_sweep.py
-HW_RIGHT_DEADBAND = 62.0
+HW_RIGHT_DEADBAND = 69.0
+
 HW_TICKS_PER_M    = 5709.0      # measured (M1); start spins on new firmware gave 5460-5810
 HW_GYRO_GAIN      = 1.0         # measured: 360 deg by hand reads +360 (0 = auto-measure at start)
 HW_CAL_SAMPLES    = 150         # start-up gyro samples (mouse still)
@@ -72,7 +74,10 @@ HW_SIDE_X         = 50.0        # mm side ToF ahead of the axle
 HW_FRONT_OFF      = 65.0        # mm front ToF ahead of the axle
 HW_WALL_K         = 0.0         # deg/s of steering per mm off-centre, straight from side ToF
 HW_GYRO_TRIM      = 0.0         # deg/s added to gyro bias. Drifts RIGHT -> make it NEGATIVE (see straight test)
+
 HW_TEST_STRAIGHT  = 0           # >0: just drive this many cells straight and stop (calibration)
+HW_TEST_TURN      = 0           # >0: in the start cell do this many 90 deg turns left, then right, print each
+
 HW_STOP_EACH_CELL = 1           # 1 = stop at every cell centre and sense walls standing still
 HW_SIDE_GUARD     = 35.0        # mm: side reflex - steer away harder the closer a wall is inside this
 HW_FRONT_STOP     = 28.0        # mm: front reflex - forward motion blocked below this + speed * HW_FRONT_REACT
@@ -91,11 +96,21 @@ HW_PIVOT_BACK     = 12.0        # mm: with a wall ahead, turn this far short of 
 HW_REVERSE_OUT    = 1           # 1 = leave dead ends backwards (no 180 deg spin between three walls)
 HW_REV_HOME       = 1           # 1 = drive the last straight of the return backwards (no spin in the start cell)
 HW_SPIN_SHIFT     = 15.0        # mm: step this far off a wall before a spin that would swing into it
-HW_V_REVERSE      = 150.0       # mm/s top speed backwards
+HW_V_REVERSE      = 100.0       # mm/s top speed backwards (slow: more side-wall fixes per mm)
 HW_SENSE_STEPS    = 30          # 10 ms steps of standing-still wall sensing in a NEW cell
 HW_SKIP_SEEN      = 1           # 1 = cells already mapped: no wall sensing, just a quick front fix
 HW_WALL_STOP      = 1           # 1 = stopping at a cell with a wall ahead, brake on the front ToF too
 HW_ZUPT_STOP      = 1           # 1 = re-estimate the gyro bias while standing still (both wheels dead still)
+# Flight log (real mouse): spinning on the spot the wheels STALL at PWM 64-70 and
+# spin fast at 75; from rest the right wheel starts later than the left.
+HW_TURN_BB        = 1           # 1 = spin turns at a fixed PWM, cut early, coast onto the heading
+HW_TURN_PWM       = 80          # PWM for spin turns (must be clearly above the stall level)
+HW_TURN_COAST     = 0.08        # s: first guess of coast per deg/s after cutting (learned every turn)
+
+HW_KICK_L         = 72          # PWM a wheel at rest needs to start (left)
+HW_KICK_R         = 82          # ... right (stickier: the start-up lean to the right)
+
+HW_LOOP_FIXED     = 1           # 1 = fixed 10 ms loop period (wait only the rest of the period)
 HW_FRONT_CENTER   = 34.0        # mm: front reading with the axle on the cell centre (log: 32)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
@@ -114,7 +129,9 @@ HW_ROOM_DOORS     = 2           # max openings in the target room's rim
 HW_KP_V           = 0.10        # effort per mm/s (common mode)
 HW_KI_V           = 0.6
 HW_KP_W           = 0.06        # effort per deg/s (differential, on gyro)
-HW_KI_W           = 0.2
+
+HW_KI_W           = 0.5
+
 HW_WAIT_BUTTON    = 1           # 1 = press SW1 to start (board only)
 HW_DEBUG          = 1           # 1 = print sensing/decisions (run tethered via mpremote)
 HW_TPMM_AUTO      = 0           # 1 = measure encoder ticks/mm at start (spin vs gyro)
@@ -191,6 +208,12 @@ SENSE_STEPS = 40
 SKIP_SEEN = 0
 WALL_STOP = 0
 ZUPT_STOP = 0
+TURN_BB = 0
+TURN_PWM = 80
+TURN_COAST = 0.08
+KICK_L = 0
+KICK_R = 0
+LOOP_FIXED = 0
 FRONT_CENTER = 35.0             # sim: 100 - FRONT_OFF
 TILT_LIM = 0.0
 SIDE_GUARD = 0.0                # mm: steer away below this (board only; sim never needs it)
@@ -265,6 +288,7 @@ def select_profile():
     global DEBUG, FRONT_STOP, FRONT_CENTER, TILT_LIM, KF_HEADING, STOP_EACH, WALL_K, GYRO_TRIM, TEST_STRAIGHT, SIDE_AUTO, SIDE_GUARD, TPMM_AUTO, FRONT_SNAP, GYRO_AUTO, ROOM_MAX_DOORS, VMAX_L, VMAX_R, SYSID
     global FRONT_REACT, FRONT_CHECK, TURN_LEAD, TURN_KLIN, TURN_WMIN, ALIGN_MOVE, ARCS, KEEP_IW, STOP_FIX
     global PIVOT_BACK, REVERSE_OUT, REV_HOME, SPIN_SHIFT, V_REVERSE, SENSE_STEPS, SKIP_SEEN, WALL_STOP, ZUPT_STOP
+    global TURN_BB, TURN_PWM, TURN_COAST, KICK_L, KICK_R, LOOP_FIXED
     IS_SIM = on_simulator()
     if IS_SIM == 1:
         return
@@ -287,6 +311,12 @@ def select_profile():
     SKIP_SEEN = HW_SKIP_SEEN
     WALL_STOP = HW_WALL_STOP
     ZUPT_STOP = HW_ZUPT_STOP
+    TURN_BB = HW_TURN_BB
+    TURN_PWM = HW_TURN_PWM
+    TURN_COAST = HW_TURN_COAST
+    KICK_L = HW_KICK_L
+    KICK_R = HW_KICK_R
+    LOOP_FIXED = HW_LOOP_FIXED
     MOT_POL_L = HW_MOTOR_POL_L
     MOT_POL_R = HW_MOTOR_POL_R
     ENC_POL_L = HW_ENC_POL_L
@@ -648,6 +678,7 @@ class Mouse:
         self.mR = 8190
         self.rC = [8190, 8190, 8190]    # last three valid front readings
         self.mC = 8190
+        self.rB = [0.0, 1e9, 2e9]       # ... and the wall positions they imply (along axis d)
         self.iw_fwd = 0.0       # learned L/R imbalance trim for straight driving
         self.vote = (0, 0, 0, 0)        # last stationary side vote: (vl, nl, vr, nr)
         self.fmed = 8190        # median front reading from the last stationary vote
@@ -657,6 +688,9 @@ class Mouse:
         self.lost = 0
         self.vfront = (0, 0)
         self.a_goal = 1e9       # along-position where the current move plans to stop
+        self.still_l = 1        # wheel did not move during the last step (for the start kick)
+        self.still_r = 1
+        self.tcoast = TURN_COAST
         self.sLm = 0            # median side wall readings of the last stationary look (0 = none)
         self.sRm = 0
 
@@ -679,6 +713,8 @@ class Mouse:
         e = uct_mouse.get_encoders()
         l = e[0] * ENC_POL_L
         r = e[1] * ENC_POL_R
+        self.still_l = 1 if fabs(l - self.el) < 0.5 else 0
+        self.still_r = 1 if fabs(r - self.er) < 0.5 else 0
         dl = (l - self.el) / TPMM
         dr = (r - self.er) / TPMM
         self.el = l
@@ -749,6 +785,10 @@ class Mouse:
             r[1] = r[2]
             r[2] = self.dC
             self.mC = med3(r[0], r[1], r[2])
+            b = self.rB
+            b[0] = b[1]
+            b[1] = b[2]
+            b[2] = self.along(self.d) + self.dC
         else:
             self.aC += 1
 
@@ -759,6 +799,9 @@ class Mouse:
     def wall_rem(self, a_end):
         if not WALL_STOP or self.aC >= 6 or self.mC > 250:
             return 1e9
+        b = self.rB
+        if max(b[0], b[1], b[2]) - min(b[0], b[1], b[2]) > 12.0:
+            return 1e9                  # readings disagree on where the wall is: stray echoes
         d = self.d
         bs = a_end + CELL / 2.0
         tol = 45.0
@@ -766,7 +809,9 @@ class Mouse:
         if bw is not None:
             if fabs(bw - bs) > 1.0:
                 return 1e9              # the mapped wall ahead is not at this stop's edge
-            tol = 90.0                  # mapped wall exactly there: trust the reading
+            if self.mC >= 70.0:
+                tol = 90.0              # mapped wall exactly there: trust a long reading
+                                        # (stray echoes are short: 25-60 mm)
         elif self.known_open(d, bs):
             return 1e9                  # the map knows that edge is open
         b = self.along(d) + self.mC - FRONT_CENTER + CELL / 2.0
@@ -879,7 +924,17 @@ class Mouse:
             self.wcmd_prev = cr
             el = (cl + TAU * al) * 100.0 / VMAX_L + uv - uw
             er = (cr + TAU * ar) * 100.0 / VMAX_R + uv + uw
-            uct_mouse.set_motors(self._pwm(el, DB_L), self._pwm(er, DB_R))
+            pl = self._pwm(el, DB_L)
+            pr = self._pwm(er, DB_R)
+            if fabs(v) >= 30.0 and fabs(self.v) < 15.0:
+                # start kick (only while the mouse is setting off): a wheel at
+                # rest needs its breakaway PWM, else one wheel starts first and
+                # the mouse yaws (the right lean)
+                if self.still_l and pl != 0 and abs(pl) < KICK_L:
+                    pl = KICK_L if pl > 0 else -KICK_L
+                if self.still_r and pr != 0 and abs(pr) < KICK_R:
+                    pr = KICK_R if pr > 0 else -KICK_R
+            uct_mouse.set_motors(pl, pr)
             # encoder watchdog: wheels commanded but no counts at all -> stop
             if v >= 80.0:
                 if self.ds == 0.0 and self.el == self.el_last and self.er == self.er_last:
@@ -891,8 +946,82 @@ class Mouse:
                     self.dead = 0
             self.el_last = self.el
             self.er_last = self.er
-        uct_mouse.delay_ms(DT_MS)
+        self.wait_period()
         self.sense()
+
+    # Control period: the board needs ~12 ms to compute a step, so waiting a
+    # further 10 ms made it a 22 ms loop; wait only for the rest of the period.
+    def wait_period(self):
+        if LOOP_FIXED:
+            w = DT_MS - (self.now() - self.last_ms)
+            if w >= 1:
+                uct_mouse.delay_ms(w)
+        else:
+            uct_mouse.delay_ms(DT_MS)
+
+    # Spin on the spot at raw PWM p, direction sg (+1 = CCW in the map frame).
+    def spin_raw(self, sg, p):
+        q = int(p) if sg * SIDE > 0 else -int(p)
+        uct_mouse.set_motors(-q, q)
+        self.wait_period()
+        self.sense()
+
+    # Motors off and wait until the spin has really stopped.
+    def spin_stop(self):
+        uct_mouse.set_motors(0, 0)
+        n = 0
+        quiet = 0
+        while n < 50 and quiet < 3:
+            self.step(0.0, 0.0)
+            quiet = quiet + 1 if fabs(self.rate) < 5.0 else 0
+            n += 1
+
+    # Spin turn for motors that stall below ~75 PWM on the spot: drive the
+    # spin at a fixed PWM and cut it where the coast (learned: deg per deg/s)
+    # carries the heading onto the target; then at most two correction spins.
+    def turn_bb(self, delta):
+        target = self.th + delta
+        t0 = self.now()
+        ovs = 0.0
+        tries = 0
+        while tries < 3:
+            err = target - self.th
+            if tries > 0 and fabs(err) < TURN_TOL:
+                break
+            sg = 1.0 if err > 0.0 else -1.0
+            p = TURN_PWM
+            th0 = self.th
+            n = 0
+            while n < 300:
+                rem = sg * (target - self.th)
+                r = sg * self.rate
+                if r < 0.0:
+                    r = 0.0
+                if rem - r * self.tcoast <= 0.0:
+                    break               # the coast from here reaches the target
+                if n > 15 and fabs(self.th - th0) < 2.0 and p < 95:
+                    p += 5              # not turning: wheels stuck, push harder
+                    th0 = self.th
+                    n = 0
+                self.spin_raw(sg, p)
+                n += 1
+            rc = sg * self.rate
+            thc = self.th
+            self.spin_stop()
+            if rc > 60.0:
+                c = sg * (self.th - thc) / rc
+                if 0.0 < c < 0.3:
+                    self.tcoast += 0.5 * (c - self.tcoast)
+            err = target - self.th
+            if delta * err < 0.0 and fabs(err) > ovs:
+                ovs = fabs(err)
+            tries += 1
+        err = target - self.th
+        if DEBUG:
+            log("turn", int(delta), "err", int(10 * err) / 10.0, "ovs", int(10 * ovs) / 10.0,
+                "ms", self.now() - t0, "tries", tries, "coast", int(1000 * self.tcoast))
+        self.p22 += 0.0005
+        self.p11 += 25.0
 
     def hold(self, steps):
         n = 0
@@ -1006,7 +1135,9 @@ class Mouse:
         if f < 130.0:
             c -= PIVOT_BACK             # wall right ahead: keep the swinging nose clear of it
         mv = c - self.along(d)
-        if fabs(mv) > 5.0:
+        if fabs(mv) > 60.0:
+            log("align skipped, move", int(mv))     # pose estimate is off: do not drive blind
+        elif fabs(mv) > 5.0:
             self.move_to(d, c)
         log("align front", f, "move", int(mv), "ms", self.now() - t0)
 
@@ -1067,9 +1198,9 @@ class Mouse:
                 gr = self.mR - NOM_R + SIDE_NOM
                 gl = self.mL - NOM_L + SIDE_NOM
                 if self.aR < 6 and gr < SIDE_GUARD:
-                    w -= clamp(5.0 * (SIDE_GUARD - gr), 0.0, 120.0)
+                    w -= clamp(8.0 * (SIDE_GUARD - gr), 0.0, 120.0)
                 if self.aL < 6 and gl < SIDE_GUARD:
-                    w += clamp(5.0 * (SIDE_GUARD - gl), 0.0, 120.0)
+                    w += clamp(8.0 * (SIDE_GUARD - gl), 0.0, 120.0)
             self.step(-vc, w)
             self.kf(latc)
             self.front_fix()
@@ -1109,6 +1240,8 @@ class Mouse:
     # Short straight move to along-position a_end on the encoders only
     # (forwards or backwards), holding the heading of axis d.
     def move_to(self, d, a_end):
+        if fabs(a_end - self.along(d)) > 80.0:
+            return                      # short alignment moves only
         self.a_goal = a_end
         n = 0
         while n < 120:
@@ -1492,6 +1625,9 @@ class Mouse:
 
     # ---- in-place turn by a heading change (deg, map frame) --------------
     def turn_by(self, delta):
+        if TURN_BB:
+            self.turn_bb(delta)
+            return
         self.iw = 0.0
         target = self.th + delta
         n = 0
@@ -1618,6 +1754,7 @@ class Mouse:
             self.p11 = 100.0
 
     def turn_to(self, nd):
+        self.rB = [0.0, 1e9, 2e9]       # new axis: old wall-position readings no longer apply
         delta = wrap180(90.0 * nd - self.th)
         if fabs(delta) < 3.0:
             self.d = nd
@@ -1800,6 +1937,14 @@ class Mouse:
                 solver.set_wall(x0 + DX[d] * goal, y0 + DY[d] * goal, d, 1)
                 log("FRONT GUARD")
                 break
+            if fabs(wrap180(self.th - 90.0 * d)) > 35.0:
+                log("HEADING LOST - stop and straighten")
+                goal = int((rel + CELL / 2.0) / CELL)
+                if goal < 0:
+                    goal = 0
+                self.settle()
+                self.turn_to(d)
+                break
             self.track(d, latc, self.profile(rem, 0.0, vmax))
             steps += 1
         if KEEP_IW:
@@ -1841,6 +1986,10 @@ class Mouse:
                         cx = int(self.X / CELL)
                         cy = int(self.Y / CELL)
                         self.solver.set_wall(cx, cy, d, 1)
+                break
+            if fabs(wrap180(self.th - 90.0 * d)) > 35.0:
+                log("HEADING LOST - stop and straighten")
+                self.lost = 1
                 break
             self.track(d, latc, self.profile(rem, v_end, vmax))
             if TEST_STRAIGHT and n % 8 == 0:
@@ -2165,6 +2314,16 @@ def mission():
     log("maze", rows, "x", cols, "side nom", SIDE_NOM, "start ToF L/C/R", m.dL, m.dC, m.dR,
         "slot counts", m.nv, "gyro gain", GYRO_GAIN)
 
+    if HW_TEST_TURN > 0 and not IS_SIM:
+        # calibration: spin turns on the spot; each prints a "turn" line
+        # (err = final heading error, ovs = overshoot, tries = 1 is ideal)
+        k = 0
+        while k < 2 * HW_TEST_TURN:
+            m.turn_by(90.0 if k < HW_TEST_TURN else -90.0)
+            m.hold(30)
+            k += 1
+        print("TURN TEST done: heading", m.th, "(should be close to 0)")
+        return
     if TEST_STRAIGHT > 0:
         # calibration: drive straight, print heading every cell, stop
         m.follow([0] * TEST_STRAIGHT, V_EXPLORE, V_TURN)
