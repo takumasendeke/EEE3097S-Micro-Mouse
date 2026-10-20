@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v35 21-Oct 01:00"
+BUILD = "v36 21-Oct 01:30"
 
 try:
     import math
@@ -121,7 +121,7 @@ HW_STRAIGHTEN     = 0.0         # deg: 0 = off (correction spins after stops loo
 HW_EXPLORE_ALL    = 1           # 1 = keep exploring after the room is found, until the whole maze is mapped
 HW_EXPLORE_TMAX   = 200.0       # s: ... but stop exploring after this long once the room is known
 HW_LOOP_FIXED     = 1           # 1 = fixed 10 ms loop period (wait only the rest of the period)
-HW_FRONT_CENTER   = 34.0        # mm front reading at a cell centre (48 made it overdrive and crash - back to 34)
+HW_FRONT_CENTER   = 47.0        # mm front reading at a cell centre: v35 log stops read 52/38/53/40/58 (~48), tof_check ~50
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
@@ -1837,19 +1837,11 @@ class Mouse:
                     sr.append(self.dR)
                 n += 1
             self.side_medians(sl, sr)
-        zs = 0.0
-        nz = 0
-        if self.sLm:
-            zs += NOM_L - self.sLm
-            nz += 1
-        if self.sRm:
-            zs += self.sRm - NOM_R
-            nz += 1
-        if nz == 0:
-            return                      # no side walls here: nothing to measure
+        if not (self.sLm and self.sRm):
+            return                      # need BOTH side walls: one noisy side read 84 mm and faked a 40 mm offset
+        z = clamp(0.5 * ((NOM_L - self.sLm) + (self.sRm - NOM_R)), -15.0, 15.0)
         d = self.d
-        z = clamp(zs / nz, -40.0, 40.0)
-        dl = 0.8 * (z - (self.lateral(d) - self.cell_lat(self.cx, self.cy, d)))
+        dl = 0.6 * (z - (self.lateral(d) - self.cell_lat(self.cx, self.cy, d)))
         self.X -= DY[d] * dl
         self.Y += DX[d] * dl
         log("latfix", int(z), "mm")
