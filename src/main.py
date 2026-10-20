@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v38 21-Oct 02:30"
+BUILD = "v39 21-Oct 03:00"
 
 try:
     import math
@@ -71,7 +71,7 @@ HW_MAZE_ROWS      = 0           # 0 = ask uct_mouse.get_maze_dimensions()
 HW_MAZE_COLS      = 0           # (board uses a square grid of the larger side)
 HW_ARENA_SIDE     = 0           # 0 = detect from the first side opening (+1 maze on the LEFT of the start heading, -1 RIGHT)
 HW_SIDE_X         = 50.0        # mm side ToF ahead of the axle
-HW_FRONT_OFF      = 65.0        # mm front ToF ahead of the axle
+HW_FRONT_OFF      = 57.0        # mm front ToF ahead of the axle (front of mouse is 60 mm ahead, measured)
 HW_WALL_K         = 0.0         # deg/s of steering per mm off-centre, straight from side ToF
 HW_GYRO_TRIM      = 0.0         # deg/s added to gyro bias. Drifts RIGHT -> make it NEGATIVE (see straight test)
 
@@ -98,7 +98,7 @@ HW_KEEP_IW        = 1           # 1 = keep the learned L/R motor-imbalance trim 
 HW_STOP_FIX       = 1           # 1 = at each cell stop, a wall seen ahead (<500 mm) fixes the along position
 # Real chassis: 105 mm long, front ToF 65 mm ahead of the axle, so turning on the
 # spot the front corners sweep ~86 mm round the axle against ~94 mm to a wall.
-HW_PIVOT_BACK     = 4.0         # mm short of centre before a turn with a wall ahead (12 put it 12 mm towards the post after the turn)
+HW_PIVOT_BACK     = 0.0         # mm short of centre before turning (backing off put the axle off-centre after the turn: left wheel caught the corner)
 HW_REVERSE_OUT    = 0           # 0 = 180 spin in dead ends (reversing is blind: drifted right into walls behind)
 HW_REV_HOME       = 0           # 0 = drive into the start forwards, then spin to face the start heading
 HW_SPIN_SHIFT     = 8.0         # mm step off a wall before a risky spin (15 left it off-centre into the next corridor)
@@ -125,7 +125,7 @@ HW_WHEEL_PI       = 1           # 1 = each wheel on its OWN encoder speed loop (
 HW_WHEEL_KP       = 0.12        # PWM per mm/s of wheel speed error (diag.py)
 HW_WHEEL_KI       = 0.8         # PWM per mm of accumulated wheel speed error (diag.py)
 HW_LOOP_FIXED     = 1           # 1 = fixed 10 ms loop period (wait only the rest of the period)
-HW_FRONT_CENTER   = 47.0        # mm front reading at a cell centre: v35 log stops read 52/38/53/40/58 (~48), tof_check ~50
+HW_FRONT_CENTER   = 38.0        # mm front reading with the axle on a cell centre (nose 60 mm ahead of axle, wall face ~94: ~34 gap + sensor set back)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
@@ -2321,6 +2321,9 @@ class Mouse:
             i = j
         if self.lost:
             self.settle()
+            # straighten before the caller replans, else every retry starts
+            # with the same bad heading and is lost again straight away
+            self.turn_to(self.d)
             self.vc = 0.0
             self.cx = int(self.X / CELL)
             self.cy = int(self.Y / CELL)
