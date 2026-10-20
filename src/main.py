@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v26 20-Oct 20:00"
+BUILD = "v27 20-Oct 21:00"
 
 try:
     import math
@@ -59,13 +59,13 @@ HW_MOTOR_POL_R    = 1
 HW_ENC_POL_L      = -1
 HW_ENC_POL_R      = 1
 
-HW_LEFT_DEADBAND  = 61.0        # rolling threshold from pwm_sweep.py
-HW_RIGHT_DEADBAND = 64.0        # stop swing is handled by HW_STOP_CREEP now; 64 was best for the lean
+HW_LEFT_DEADBAND  = 20.0        # diag.py sweep 20 Oct: rolling dead-band (61 over-drove every command by ~40 PWM)
+HW_RIGHT_DEADBAND = 15.0        # diag.py sweep: 15.2
 
-HW_TICKS_PER_M    = 5500.0      # was 5709: it overshot every cell (fix +17..+28), so it travels more per tick than assumed
+HW_TICKS_PER_M    = 5709.0      # back to measured: the overshoot came from the wrong dead-band, not the encoders
 HW_GYRO_GAIN      = 1.0         # measured: 360 deg by hand reads +360 (0 = auto-measure at start)
 HW_CAL_SAMPLES    = 150         # start-up gyro samples (mouse still)
-HW_VMAX           = 500.0       # mm/s at effort 100 (46 effort ~ 0.23 m/s in M1)
+HW_VMAX           = 498.0       # mm/s at PWM 100, LEFT wheel (diag: 6.23 mm/s per PWM x (100-20))
 HW_TAU            = 0.06        # s, motor lag used for accel feed-forward
 HW_MAZE_ROWS      = 0           # 0 = ask uct_mouse.get_maze_dimensions()
 HW_MAZE_COLS      = 0           # (board uses a square grid of the larger side)
@@ -78,7 +78,7 @@ HW_GYRO_TRIM      = 0.0         # deg/s added to gyro bias. Drifts RIGHT -> make
 HW_TEST_STRAIGHT  = 0           # >0: just drive this many cells straight and stop (calibration)
 HW_TEST_TURN      = 0           # >0: in the start cell do this many 90 deg turns left, then right, print each
 HW_CALIBRATE      = 0           # 1 = calibration run, prints the values to paste below; 2 = also side-sensor offset
-HW_VMAX_R         = 0.0         # mm/s at effort 100, RIGHT wheel (0 = same as HW_VMAX); from HW_CALIBRATE
+HW_VMAX_R         = 424.0       # RIGHT wheel (diag: 5.00 mm/s per PWM -> 25% weaker than the left: the right lean)
 HW_SIDE_OFFSET    = 0.0         # mm the LEFT side ToF reads more than the right at the same distance (HW_CALIBRATE = 2)
 
 HW_STOP_EACH_CELL = 1           # 1 = stop at every cell centre and sense walls standing still
@@ -107,11 +107,11 @@ HW_ZUPT_STOP      = 1           # 1 = re-estimate the gyro bias while standing s
 # Flight log (real mouse): spinning on the spot the wheels STALL at PWM 64-70 and
 # spin fast at 75; from rest the right wheel starts later than the left.
 HW_TURN_BB        = 1           # 1 = spin turns at a fixed PWM, cut early, coast onto the heading
-HW_TURN_PWM       = 80          # PWM for spin turns (must be clearly above the stall level)
-HW_TURN_COAST     = 0.08        # s: first guess of coast per deg/s after cutting (learned every turn)
+HW_TURN_PWM       = 52          # spin PWM: diag turned cleanly at ~200 deg/s around 50-60 (80 spun ~350 deg/s)
+HW_TURN_COAST     = 0.045       # s: coast per deg/s after cutting (diag: ~7 deg at 200 deg/s); learned each turn
 
-HW_KICK_L         = 72          # PWM a wheel at rest needs to start (left)
-HW_KICK_R         = 77          # was 82: too strong a kick on the right also yaws it at take-off
+HW_KICK_L         = 44          # PWM a wheel at rest needs to start (diag: wheels moved by ~42-46)
+HW_KICK_R         = 48          # ... right
 
 HW_STOP_CREEP     = 45.0        # mm/s: slowest speed into a stop (70 arrived too hot); stop swing is fixed by HW_STRAIGHTEN
 HW_BRAKE_HOLD     = 0           # 1 = gyro-steered roll-out at stops (tested worse in emulation: off)
