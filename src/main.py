@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v20 20-Oct 16:00"
+BUILD = "v24 20-Oct 19:00"
 
 try:
     import math
@@ -60,9 +60,9 @@ HW_ENC_POL_L      = -1
 HW_ENC_POL_R      = 1
 
 HW_LEFT_DEADBAND  = 61.0        # rolling threshold from pwm_sweep.py
-HW_RIGHT_DEADBAND = 69.0
+HW_RIGHT_DEADBAND = 64.0        # stop swing is handled by HW_STOP_CREEP now; 64 was best for the lean
 
-HW_TICKS_PER_M    = 5709.0      # measured (M1); start spins on new firmware gave 5460-5810
+HW_TICKS_PER_M    = 5500.0      # was 5709: it overshot every cell (fix +17..+28), so it travels more per tick than assumed
 HW_GYRO_GAIN      = 1.0         # measured: 360 deg by hand reads +360 (0 = auto-measure at start)
 HW_CAL_SAMPLES    = 150         # start-up gyro samples (mouse still)
 HW_VMAX           = 500.0       # mm/s at effort 100 (46 effort ~ 0.23 m/s in M1)
@@ -82,8 +82,8 @@ HW_VMAX_R         = 0.0         # mm/s at effort 100, RIGHT wheel (0 = same as H
 HW_SIDE_OFFSET    = 0.0         # mm the LEFT side ToF reads more than the right at the same distance (HW_CALIBRATE = 2)
 
 HW_STOP_EACH_CELL = 1           # 1 = stop at every cell centre and sense walls standing still
-HW_SIDE_GUARD     = 35.0        # mm: side reflex - steer away harder the closer a wall is inside this
-HW_FRONT_STOP     = 28.0        # mm: front reflex - forward motion blocked below this + speed * HW_FRONT_REACT
+HW_SIDE_GUARD     = 40.0        # mm: steer away from a side wall/post closer than this (was 35: post close calls)
+HW_FRONT_STOP     = 35.0        # mm: front reflex - blocked below this + speed * HW_FRONT_REACT (was 28: hit walls)
 HW_FRONT_REACT    = 0.15        # s: ToF latency + braking time, so faster = stop earlier
 HW_FRONT_CHECK    = 20          # steps: after each explore turn, look ahead standing still before driving
 HW_TURN_LEAD      = 0.06        # s: brake on the predicted stopping heading (motor lag), stops overshoot
@@ -111,8 +111,9 @@ HW_TURN_PWM       = 80          # PWM for spin turns (must be clearly above the 
 HW_TURN_COAST     = 0.08        # s: first guess of coast per deg/s after cutting (learned every turn)
 
 HW_KICK_L         = 72          # PWM a wheel at rest needs to start (left)
-HW_KICK_R         = 82          # ... right (stickier: the start-up lean to the right)
+HW_KICK_R         = 77          # was 82: too strong a kick on the right also yaws it at take-off
 
+HW_STOP_CREEP     = 70.0        # mm/s: slowest speed on the way into a stop (below ~60 one wheel stalls first -> swing)
 HW_LOOP_FIXED     = 1           # 1 = fixed 10 ms loop period (wait only the rest of the period)
 HW_FRONT_CENTER   = 34.0        # mm: front reading with the axle on the cell centre (log: 32)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
@@ -120,9 +121,9 @@ HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measure
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
 HW_FRONT_SNAP     = 30.0        # mm: front fix only if within this of a wall line
 HW_TOF_SIGMA      = 15.0        # mm, KF measurement noise (measured spread ~20-70)
-HW_V_EXPLORE      = 200.0       # mm/s  EXPLORE SPEED
-HW_V_RETURN       = 250.0       # mm/s
-HW_V_SPRINT       = 330.0       # mm/s  SPRINT SPEED. Down if it wanders.
+HW_V_EXPLORE      = 160.0       # mm/s explore (was 200: overshoots / front crashes)
+HW_V_RETURN       = 220.0       # mm/s
+HW_V_SPRINT       = 280.0       # mm/s sprint (was 330)
 HW_V_TURN         = 170.0       # mm/s through smooth 90 deg arcs
 HW_ACCEL          = 1200.0      # mm/s^2
 HW_W_TURN         = 180.0       # deg/s in-place turn ceiling
@@ -133,7 +134,7 @@ HW_KP_V           = 0.10        # effort per mm/s (common mode)
 HW_KI_V           = 0.6
 HW_KP_W           = 0.06        # effort per deg/s (differential, on gyro)
 
-HW_KI_W           = 0.5
+HW_KI_W           = 0.3         # was 0.5: with the big right dead-band it over-corrected
 
 HW_WAIT_BUTTON    = 1           # 1 = press SW1 to start (board only)
 HW_DEBUG          = 1           # 1 = print sensing/decisions (run tethered via mpremote)
@@ -217,6 +218,7 @@ TURN_COAST = 0.08
 KICK_L = 0
 KICK_R = 0
 LOOP_FIXED = 0
+STOP_CREEP = 40.0
 SIDE_OFFSET = 0.0
 FRONT_CENTER = 35.0             # sim: 100 - FRONT_OFF
 TILT_LIM = 0.0
@@ -292,7 +294,7 @@ def select_profile():
     global DEBUG, FRONT_STOP, FRONT_CENTER, TILT_LIM, KF_HEADING, STOP_EACH, WALL_K, GYRO_TRIM, TEST_STRAIGHT, SIDE_AUTO, SIDE_GUARD, TPMM_AUTO, FRONT_SNAP, GYRO_AUTO, ROOM_MAX_DOORS, VMAX_L, VMAX_R, SYSID
     global FRONT_REACT, FRONT_CHECK, TURN_LEAD, TURN_KLIN, TURN_WMIN, ALIGN_MOVE, ARCS, KEEP_IW, STOP_FIX
     global PIVOT_BACK, REVERSE_OUT, REV_HOME, SPIN_SHIFT, V_REVERSE, SENSE_STEPS, SKIP_SEEN, WALL_STOP, ZUPT_STOP
-    global TURN_BB, TURN_PWM, TURN_COAST, KICK_L, KICK_R, LOOP_FIXED, SIDE_OFFSET
+    global TURN_BB, TURN_PWM, TURN_COAST, KICK_L, KICK_R, LOOP_FIXED, SIDE_OFFSET, STOP_CREEP
     IS_SIM = on_simulator()
     if IS_SIM == 1:
         return
@@ -321,6 +323,7 @@ def select_profile():
     KICK_L = HW_KICK_L
     KICK_R = HW_KICK_R
     LOOP_FIXED = HW_LOOP_FIXED
+    STOP_CREEP = HW_STOP_CREEP
     MOT_POL_L = HW_MOTOR_POL_L
     MOT_POL_R = HW_MOTOR_POL_R
     ENC_POL_L = HW_ENC_POL_L
@@ -480,6 +483,28 @@ class MazeSolver:
                 bx += 1
             by += 1
         return None
+
+    # Fallback when exploration ended without a confirmed room: the 2x2 block
+    # with all 4 interior walls seen open that looks most like the room
+    # (most rim walls seen as walls, then fewest openings). None if no block.
+    def best_room(self):
+        best = None
+        bs = -99
+        by = 0
+        while by < self.rows - 1:
+            bx = 0
+            while bx < self.cols - 1:
+                io, iu = self._count(self._block(bx, by))
+                if io == 4:
+                    ro, ru = self._count(self._rim(bx, by))
+                    sc = 2 * (8 - ro - ru) - ro
+                    if sc > bs:
+                        bs = sc
+                        i0 = by * self.cols + bx
+                        best = [i0, i0 + 1, i0 + self.cols, i0 + self.cols + 1]
+                bx += 1
+            by += 1
+        return best
 
     # Seeds for the exploration floodfill: cells that could complete a
     # plausible room are cheapest, any other unvisited cell costs more.
@@ -859,7 +884,7 @@ class Mouse:
         # A wall at the front edge of the cell the move stops in is expected:
         # the speed profile already stops for it, so only the last-resort
         # distance applies (the speed term made it brake 20-35 mm short).
-        if aw > self.a_goal + CELL / 2.0 - 40.0 and self.fC >= FRONT_STOP + 0.5 * FRONT_REACT * v:
+        if aw > self.a_goal + CELL / 2.0 - 40.0 and self.fC >= FRONT_STOP + FRONT_REACT * v:
             return 0
         # Walls stand only on cell boundaries, and a boundary the map already
         # knows is open cannot be one: such short readings are the ToF's
@@ -1207,17 +1232,19 @@ class Mouse:
             vc = self.profile(rem, 0.0, vmax)
             lat = self.lateral(f) - latc
             psi = wrap180(self.th - 90.0 * f) * D2R
-            pref = clamp(KLAT * lat, -PSI_MAX, PSI_MAX)     # backwards: steer the other way
-            w = clamp(KPSI * (pref - psi) / D2R, -120.0, 120.0)
+            # backwards the side sensors trail the wheels, so the forward
+            # gains over-correct (wobble): half the lateral pull, softer heading loop
+            pref = clamp(0.5 * KLAT * lat, -0.5 * PSI_MAX, 0.5 * PSI_MAX)     # backwards: steer the other way
+            w = clamp(0.6 * KPSI * (pref - psi) / D2R, -60.0, 60.0)
             if SIDE_GUARD > 0.0:
                 # side reflex, reversed: backing away from a close wall needs
                 # the nose turned TOWARDS it
                 gr = self.mR - NOM_R + SIDE_NOM
                 gl = self.mL - NOM_L + SIDE_NOM
                 if self.aR < 6 and gr < SIDE_GUARD:
-                    w -= clamp(8.0 * (SIDE_GUARD - gr), 0.0, 120.0)
+                    w -= clamp(3.0 * (SIDE_GUARD - gr), 0.0, 60.0)
                 if self.aL < 6 and gl < SIDE_GUARD:
-                    w += clamp(8.0 * (SIDE_GUARD - gl), 0.0, 120.0)
+                    w += clamp(3.0 * (SIDE_GUARD - gl), 0.0, 60.0)
             self.step(-vc, w)
             self.kf(latc)
             self.front_fix()
@@ -1840,8 +1867,8 @@ class Mouse:
                 vc = vt
         else:
             vc = vt
-        if v_end == 0.0 and vc < 40.0 and rem > 3.0:
-            vc = 40.0
+        if v_end == 0.0 and vc < STOP_CREEP and rem > 3.0:
+            vc = STOP_CREEP
         self.vc = vc
         return vc
 
@@ -2644,6 +2671,21 @@ def mission():
         else:
             nd = solver.next_dir(m.cx, m.cy, m.d)
         log("at", m.cx, m.cy, "d", m.d, "next", nd, "t", (m.now() - m.t0) / 1000.0)
+    if solver.room is None:
+        rm = solver.best_room()
+        if rm is not None:
+            # no room passed the strict test (a rim wall misread or unseen):
+            # use the most room-like open 2x2 block and drive into it
+            log("no room confirmed - using best 2x2 block", rm)
+            k = 0
+            while k < 4 and (m.cy * solver.cols + m.cx) not in rm:
+                moves = solver.plan(m.cx, m.cy, m.d, rm)
+                if not moves:
+                    break
+                m.follow(moves, V_EXPLORE, V_TURN)
+                k += 1
+            if (m.cy * solver.cols + m.cx) in rm:
+                solver.room = rm
     if solver.room is None:
         log("no room found")
     else:
