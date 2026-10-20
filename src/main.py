@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v29 20-Oct 22:00"
+BUILD = "v30 20-Oct 22:30"
 
 try:
     import math
@@ -78,11 +78,11 @@ HW_GYRO_TRIM      = 0.0         # deg/s added to gyro bias. Drifts RIGHT -> make
 HW_TEST_STRAIGHT  = 0           # >0: just drive this many cells straight and stop (calibration)
 HW_TEST_TURN      = 0           # >0: in the start cell do this many 90 deg turns left, then right, print each
 HW_CALIBRATE      = 0           # 1 = calibration run, prints the values to paste below; 2 = also side-sensor offset
-HW_VMAX_R         = 424.0       # RIGHT wheel (diag: 5.00 mm/s per PWM -> 25% weaker than the left: the right lean)
+HW_VMAX_R         = 412.0       # RIGHT wheel (diag 424; a touch lower = a little more right drive against the slight right drift)
 HW_SIDE_OFFSET    = 0.0         # mm the LEFT side ToF reads more than the right at the same distance (HW_CALIBRATE = 2)
 
 HW_STOP_EACH_CELL = 1           # 1 = stop at every cell centre and sense walls standing still
-HW_SIDE_GUARD     = 35.0        # mm: steer away from a side wall closer than this (40 kicked the heading at posts)
+HW_SIDE_GUARD     = 25.0        # mm side reflex (tof_check: centred readings dip to 21-23 from noise; 35 gave random steering kicks)
 HW_FRONT_STOP     = 35.0        # mm: front reflex - blocked below this + speed * HW_FRONT_REACT (was 28: hit walls)
 HW_FRONT_REACT    = 0.15        # s: ToF latency + braking time, so faster = stop earlier
 HW_FRONT_CHECK    = 20          # steps: after each explore turn, look ahead standing still before driving
@@ -119,12 +119,12 @@ HW_STRAIGHTEN     = 0.0         # deg: 0 = off (correction spins after stops loo
 HW_EXPLORE_ALL    = 1           # 1 = keep exploring after the room is found, until the whole maze is mapped
 HW_EXPLORE_TMAX   = 200.0       # s: ... but stop exploring after this long once the room is known
 HW_LOOP_FIXED     = 1           # 1 = fixed 10 ms loop period (wait only the rest of the period)
-HW_FRONT_CENTER   = 34.0        # mm: front reading with the axle on the cell centre (log: 32)
+HW_FRONT_CENTER   = 48.0        # mm front reading with the axle on a cell centre (tof_check 20 Oct: median ~50; 34 stopped ~15 mm too far forward)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
 HW_FRONT_SNAP     = 30.0        # mm: front fix only if within this of a wall line
-HW_TOF_SIGMA      = 15.0        # mm, KF measurement noise (measured spread ~20-70)
+HW_TOF_SIGMA      = 20.0        # mm side ToF noise (tof_check: spread ~+-20 standing still)
 HW_V_EXPLORE      = 160.0       # mm/s explore (was 200: overshoots / front crashes)
 HW_V_RETURN       = 220.0       # mm/s
 HW_V_SPRINT       = 280.0       # mm/s sprint (was 330)
