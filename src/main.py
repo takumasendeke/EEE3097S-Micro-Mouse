@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v44 21-Oct 05:30"
+BUILD = "v45 21-Oct 06:00"
 
 try:
     import math
@@ -82,7 +82,7 @@ HW_VMAX_R         = 412.0       # RIGHT wheel (diag 424; a touch lower = a littl
 HW_TURN_LATFIX    = 1           # 1 = after every turn, set the sideways position from still side readings before driving
 HW_PSI_MAX        = 0.07        # rad (~4 deg): max angle it steers to recentre (sim 0.14 ~8 deg = the bends/drift)
 HW_KLAT           = 0.010       # rad heading per mm off-centre (0.012 + noisy sides steered it up to 8 deg)
-HW_SIDE_OFFSET    = 12.0        # mm: + moves the centre line RIGHT (~half in mm); left wheel kept brushing the posts at 6
+HW_SIDE_OFFSET    = 9.0         # mm: + moves the centre line RIGHT (12 + latfix pushed the right wheel into walls)
 
 HW_STOP_EACH_CELL = 1           # 1 = stop at every cell centre and sense walls standing still
 HW_SIDE_GUARD     = 35.0        # mm side reflex (25 let it drift onto the prongs - back to 35)
@@ -126,7 +126,7 @@ HW_WHEEL_PI       = 1           # 1 = each wheel on its OWN encoder speed loop (
 HW_WHEEL_KP       = 0.12        # PWM per mm/s of wheel speed error (diag.py)
 HW_WHEEL_KI       = 0.8         # PWM per mm of accumulated wheel speed error (diag.py)
 HW_LOOP_FIXED     = 1           # 1 = fixed 10 ms loop period (wait only the rest of the period)
-HW_FRONT_CENTER   = 45.0        # mm front reading at a cell centre (42 overdid the correction from 48)
+HW_FRONT_CENTER   = 43.5        # mm front reading at a cell centre: midway between v43 (42) and v44 (45)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
@@ -1278,7 +1278,7 @@ class Mouse:
         if f < 130.0:
             # a wall this close can only be this cell's front wall. Neither the
             # front ToF nor the encoders is trusted alone: use their average
-            a = 0.6 * (c + FRONT_CENTER - f) + 0.4 * self.along(d)   # mostly the front ToF
+            a = 0.65 * (c + FRONT_CENTER - f) + 0.35 * self.along(d)   # mostly the front ToF (v43 0.7, v44 0.6)
             self.X += DX[d] * (a - self.along(d))
             self.Y += DY[d] * (a - self.along(d))
         elif not (self.fmed_ok and STOP_FIX):     # (stop_fix already used this reading)
@@ -1908,9 +1908,9 @@ class Mouse:
         if okl and okr:
             z = clamp(0.5 * ((NOM_L - self.sLm) + (self.sRm - NOM_R)), -15.0, 15.0)
         elif okl:
-            z = clamp(NOM_L - self.sLm, -10.0, 10.0)
+            z = clamp(NOM_L - self.sLm, -6.0, 6.0)      # one wall: small corrections only
         elif okr:
-            z = clamp(self.sRm - NOM_R, -10.0, 10.0)
+            z = clamp(self.sRm - NOM_R, -6.0, 6.0)
         else:
             return
         d = self.d
