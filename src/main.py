@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v41 21-Oct 04:00"
+BUILD = "v42 21-Oct 04:30"
 
 try:
     import math
@@ -121,6 +121,7 @@ HW_BRAKE_HOLD     = 0           # 1 = gyro-steered roll-out at stops (tested wor
 HW_STRAIGHTEN     = 0.0         # deg: 0 = off (correction spins after stops looked like wiggling)
 HW_EXPLORE_ALL    = 1           # 1 = keep exploring after the room is found, until the whole maze is mapped
 HW_EXPLORE_TMAX   = 200.0       # s: ... but stop exploring after this long once the room is known
+HW_STOP_EXTRA     = 15.0        # mm: end every stop this far PAST the cell centre (it stopped short of the square); a wall ahead still stops it by ToF
 HW_WHEEL_PI       = 1           # 1 = each wheel on its OWN encoder speed loop (diag.py's controller: straight, square stops)
 HW_WHEEL_KP       = 0.12        # PWM per mm/s of wheel speed error (diag.py)
 HW_WHEEL_KI       = 0.8         # PWM per mm of accumulated wheel speed error (diag.py)
@@ -229,6 +230,7 @@ KICK_L = 0
 KICK_R = 0
 LOOP_FIXED = 0
 WHEEL_PI = 0
+STOP_EXTRA = 0.0
 STOP_CREEP = 40.0
 STRAIGHTEN = 0.0
 BRAKE_HOLD = 0
@@ -344,7 +346,7 @@ def select_profile():
     global DEBUG, FRONT_STOP, FRONT_CENTER, TILT_LIM, KF_HEADING, STOP_EACH, WALL_K, GYRO_TRIM, TEST_STRAIGHT, SIDE_AUTO, SIDE_GUARD, TPMM_AUTO, FRONT_SNAP, GYRO_AUTO, ROOM_MAX_DOORS, VMAX_L, VMAX_R, SYSID
     global FRONT_REACT, FRONT_CHECK, TURN_LEAD, TURN_KLIN, TURN_WMIN, ALIGN_MOVE, ARCS, KEEP_IW, STOP_FIX
     global PIVOT_BACK, REVERSE_OUT, REV_HOME, SPIN_SHIFT, V_REVERSE, SENSE_STEPS, SKIP_SEEN, WALL_STOP, ZUPT_STOP
-    global KLAT, PSI_MAX, WHEEL_PI
+    global KLAT, PSI_MAX, WHEEL_PI, STOP_EXTRA
     global TURN_BB, TURN_PWM, TURN_COAST, KICK_L, KICK_R, LOOP_FIXED, SIDE_OFFSET, STOP_CREEP, STRAIGHTEN, EXPLORE_ALL, BRAKE_HOLD
     IS_SIM = on_simulator()
     if IS_SIM == 1:
@@ -396,6 +398,7 @@ def select_profile():
     SIDE_OFFSET = HW_SIDE_OFFSET
     KLAT = HW_KLAT
     WHEEL_PI = HW_WHEEL_PI
+    STOP_EXTRA = HW_STOP_EXTRA
     PSI_MAX = HW_PSI_MAX
     SYSID = HW_SYSID
     TPMM_AUTO = HW_TPMM_AUTO
@@ -1251,8 +1254,9 @@ class Mouse:
             if len(vals) >= 5:
                 vals.sort()
                 f = vals[len(vals) // 2]
-        if f > 500:
-            return                      # no wall in reach ahead
+        if f >= 130.0:
+            log("align front", f, "far - no move")
+            return                      # only this cell's own front wall is accurate enough to move by
         c = self.cell_along(self.cx, self.cy, d)
         if f < 130.0:
             # a wall this close can only be this cell's front wall. Neither the
@@ -2123,7 +2127,7 @@ class Mouse:
                     fs = 0
                     fo = 0
                     tl = 0
-            rem = CELL * goal - rel
+            rem = CELL * goal - rel + STOP_EXTRA
             self.a_goal = a0 + CELL * goal
             r2 = self.wall_rem(self.a_goal)
             if r2 < rem:
@@ -2180,7 +2184,7 @@ class Mouse:
         self.a_goal = a_end if v_end == 0.0 else 1e9
         n = 0
         while n < 3000:
-            rem = a_end - self.along(d)
+            rem = a_end - self.along(d) + (STOP_EXTRA if v_end == 0.0 else 0.0)
             if v_end == 0.0:
                 r2 = self.wall_rem(a_end)
                 if r2 < rem:
