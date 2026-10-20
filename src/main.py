@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v40 21-Oct 03:30"
+BUILD = "v41 21-Oct 04:00"
 
 try:
     import math
@@ -103,7 +103,7 @@ HW_REVERSE_OUT    = 0           # 0 = 180 spin in dead ends (reversing is blind:
 HW_REV_HOME       = 0           # 0 = drive into the start forwards, then spin to face the start heading
 HW_SPIN_SHIFT     = 8.0         # mm step off a wall before a risky spin (15 left it off-centre into the next corridor)
 HW_V_REVERSE      = 100.0       # mm/s top speed backwards (slow: more side-wall fixes per mm)
-HW_SENSE_STEPS    = 30          # 10 ms steps of standing-still wall sensing in a NEW cell
+HW_SENSE_STEPS    = 40          # 10 ms steps of standing-still wall sensing in a NEW cell (more data)
 HW_SKIP_SEEN      = 1           # 1 = cells already mapped: no wall sensing, just a quick front fix
 HW_WALL_STOP      = 1           # 1 = stopping at a cell with a wall ahead, brake on the front ToF too
 HW_ZUPT_STOP      = 1           # 1 = re-estimate the gyro bias while standing still (both wheels dead still)
@@ -125,17 +125,17 @@ HW_WHEEL_PI       = 1           # 1 = each wheel on its OWN encoder speed loop (
 HW_WHEEL_KP       = 0.12        # PWM per mm/s of wheel speed error (diag.py)
 HW_WHEEL_KI       = 0.8         # PWM per mm of accumulated wheel speed error (diag.py)
 HW_LOOP_FIXED     = 1           # 1 = fixed 10 ms loop period (wait only the rest of the period)
-HW_FRONT_CENTER   = 38.0        # mm front reading with the axle on a cell centre (nose 60 mm ahead of axle, wall face ~94: ~34 gap + sensor set back)
+HW_FRONT_CENTER   = 48.0        # mm front reading at a cell centre: v40 stops median 51, v35 ~48, tof_check ~50 (38 pushed the nose into walls)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
 HW_FRONT_SNAP     = 30.0        # mm: front fix only if within this of a wall line
 HW_TOF_SIGMA      = 20.0        # mm side ToF noise (tof_check: spread ~+-20 standing still)
-HW_V_EXPLORE      = 160.0       # mm/s explore (was 200: overshoots / front crashes)
-HW_V_RETURN       = 220.0       # mm/s
-HW_V_SPRINT       = 280.0       # mm/s sprint (was 330)
+HW_V_EXPLORE      = 120.0       # mm/s explore (slow first, speed later)
+HW_V_RETURN       = 160.0       # mm/s
+HW_V_SPRINT       = 200.0       # mm/s sprint
 HW_V_TURN         = 170.0       # mm/s through smooth 90 deg arcs
-HW_ACCEL          = 600.0       # mm/s^2 (diag.py used 400 and drove perfectly; 1200 yawed it at starts)
+HW_ACCEL          = 400.0       # mm/s^2 (diag.py value)
 HW_W_TURN         = 180.0       # deg/s in-place turn ceiling
 HW_ALPHA_TURN     = 1000.0      # deg/s^2
 HW_TURN_TOL       = 3.0         # deg: accept the spin within this (1.5 caused extra back-and-forth corrections)
@@ -1255,9 +1255,9 @@ class Mouse:
             return                      # no wall in reach ahead
         c = self.cell_along(self.cx, self.cy, d)
         if f < 130.0:
-            # a wall this close can only be this cell's front wall: the reading
-            # gives the position directly (odometry can be 40+ mm off after slip)
-            a = c + FRONT_CENTER - f
+            # a wall this close can only be this cell's front wall. Neither the
+            # front ToF nor the encoders is trusted alone: use their average
+            a = 0.5 * ((c + FRONT_CENTER - f) + self.along(d))
             self.X += DX[d] * (a - self.along(d))
             self.Y += DY[d] * (a - self.along(d))
         elif not (self.fmed_ok and STOP_FIX):     # (stop_fix already used this reading)
