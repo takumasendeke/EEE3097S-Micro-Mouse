@@ -1,0 +1,76 @@
+S4 BUILD v42 21-Oct 04:30
+maze 6 x 6 side nom 60.0 start ToF L/C/R 52 265 41 slot counts [1, 0, 1, 0, 1] gyro gain 1.0
+start walls L F R 1 0 1 centred L/R 58.0 46.0
+maze is on the RIGHT of the start heading
+cell 1 0 d 0 walls L F R 0 1 1 votes L 28 / 29 F 24 / 25 R 0 / 40 front 42 fix -11 th -2 kfh 0.0
+at 1 0 d 0 next 1 t 3.875
+align front 42 move -6 ms 1
+turn 92 err 0.2 ovs 11.3 ms 1298 tries 2 coast 70
+latfix -3 mm
+cell 1 1 d 1 walls L F R 0 1 0 votes L 0 / 40 F 33 / 35 R 0 / 40 front 58 fix 19 th 89 kfh 0.0
+at 1 1 d 1 next 2 t 8.194
+align front 58 move 10 ms 455
+turn 90 err 1.6 ovs 0.0 ms 826 tries 1 coast 60
+cell 0 1 d 2 walls L F R 1 1 1 votes L 23 / 25 F 9 / 9 R 36 / 38 front 29 fix 0 th 178 kfh 0.0
+at 0 1 d 2 next 0 t 12.863
+align front 29 move -19 ms 574
+turn 179 err -2.9 ovs 2.9 ms 1473 tries 1 coast 57
+latfix 4 mm
+pass 1 1
+cell 2 1 d 0 walls L F R 1 0 0 votes L 29 / 30 F 0 / 40 R 0 / 40 front 234 fix -6 th 363 kfh 0.0
+at 2 1 d 0 next 0 t 20.728
+cell 3 1 d 0 walls L F R 0 1 0 votes L 0 / 40 F 36 / 38 R 0 / 40 front 60 fix -9 th 360 kfh 0.0
+at 3 1 d 0 next 3 t 23.171
+align front 60 move 12 ms 527
+turn -89 err 2.1 ovs 2.1 ms 920 tries 1 coast 54
+ROOM found at 2 0 doors 2
+cell 3 0 d 3 walls L F R 1 1 0 votes L 32 / 35 F 25 / 26 R 0 / 40 front 50 fix -10 th 272 kfh 0.0
+at 3 0 d 3 next 2 t 27.661
+align front 50 move 2 ms 1
+turn -92 err 0.4 ovs 7.4 ms 1224 tries 2 coast 50
+latfix 0 mm
+cell 2 0 d 2 walls L F R 1 1 0 votes L 34 / 37 F 30 / 33 R 0 / 40 front 57 fix 0 th 183 kfh 0.0
+at 2 0 d 2 next 1 t 31.609
+align front 57 move 9 ms 481
+turn -89 err -1.6 ovs 5.3 ms 1185 tries 2 coast 47
+seen 2 1 d 1 front 57 fix -4 th 90 kfh 0.0
+at 2 1 d 1 next 0 t 35.909
+align front 57 move 9 ms 478
+turn -89 err 2.7 ovs 2.7 ms 902 tries 1 coast 49
+latfix -10 mm
+seen 3 1 d 0 front 29 fix 3 th -1 kfh 0.0
+at 3 1 d 0 next 1 t 40.11
+align front 29 move -19 ms 541
+turn 88 err 0.1 ovs 4.4 ms 1126 tries 2 coast 62
+latfix 7 mm
+cell 3 2 d 1 walls L F R 1 0 0 votes L 24 / 24 F 0 / 40 R 0 / 40 front 209 fix 10 th 83 kfh 0.0
+at 3 2 d 1 next 1 t 45.103
+cell 3 3 d 1 walls L F R 0 1 1 votes L 0 / 40 F 16 / 16 R 32 / 36 front 50 fix -18 th 86 kfh 0.0
+at 3 3 d 1 next 2 t 47.802
+align front 50 move 2 ms 1
+turn 93 err 2.9 ovs 3.8 ms 1409 tries 3 coast 57
+latfix -6 mm
+cell 2 3 d 2 walls L F R 1 0 1 votes L 29 / 29 F 0 / 40 R 30 / 35 front 378 fix 0 th 183 kfh 0.0
+at 2 3 d 2 next 2 t 52.511
+cell 1 3 d 2 walls L F R 0 0 1 votes L 0 / 40 F 0 / 40 R 27 / 34 front 197 fix 16 th 175 kfh 0.0
+at 1 3 d 2 next 2 t 55.248
+cell 0 3 d 2 walls L F R 0 1 1 votes L 0 / 40 F 31 / 34 R 33 / 40 front 62 fix -9 th 177 kfh 0.0
+at 0 3 d 2 next 3 t 57.46
+align front 62 move 14 ms 284
+turn 91 err 2.6 ovs 0.0 ms 781 tries 1 coast 43
+latfix 10 mm
+cell 0 2 d 3 walls L F R 1 0 1 votes L 17 / 18 F 1 / 40 R 22 / 40 front 152 fix 0 th 283 kfh 0.0
+at 0 2 d 3 next 1 t 62.312
+align front 152 far - no move
+turn 177 err 1.8 ovs 6.4 ms 1766 tries 2 coast 60
+latfix -10 mm
+FRONT CHECK: wall ahead after turn, next -1
+maze mapped - going to the room
+PIROUETTE at 0 2
+spin spot walls 15 d 1
+turn 360 err -2.6 ovs 2.6 ms 2470 tries 1 coast 59
+return None
+align front 68 move 1 ms 189
+turn -90 err 2.0 ovs 2.0 ms 925 tries 1 coast 53
+sprint None
+done t 74.94
