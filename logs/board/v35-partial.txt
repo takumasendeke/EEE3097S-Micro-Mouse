@@ -1,0 +1,56 @@
+S4 BUILD v35 21-Oct 01:00
+maze 6 x 6 side nom 60.0 start ToF L/C/R 54 8190 31 slot counts [1, 0, 0, 0, 1] gyro gain 1.0
+start walls L F R 1 0 1 centred L/R 56.0 44.0
+cell 1 0 d 0 walls L F R 1 0 1 votes L 24 / 27 F 0 / 30 R 20 / 20 front 356 fix 0 th 0 kfh 0.0
+at 1 0 d 0 next 0 t 3.549
+cell 2 0 d 0 walls L F R 1 0 1 votes L 18 / 19 F 0 / 30 R 19 / 19 front 184 fix 15 th 4 kfh 0.0
+at 2 0 d 0 next 0 t 5.775
+maze is on the LEFT of the start heading
+cell 3 0 d 0 walls L F R 0 1 1 votes L 0 / 30 F 6 / 7 R 19 / 19 front 52 fix -43 th -5 kfh 0.0
+at 3 0 d 0 next 1 t 7.856
+align front 52 move 14 ms 467
+turn 90 err 1.5 ovs 0.0 ms 824 tries 1 coast 36
+latfix -2 mm
+cell 3 1 d 1 walls L F R 0 0 1 votes L 0 / 30 F 0 / 30 R 22 / 22 front 195 fix 10 th 87 kfh 0.0
+at 3 1 d 1 next 1 t 12.077
+cell 3 2 d 1 walls L F R 0 1 1 votes L 0 / 30 F 20 / 21 R 26 / 26 front 38 fix 2 th 88 kfh 0.0
+at 3 2 d 1 next 2 t 14.081
+align front 38 move 0 ms 0
+turn 91 err -0.2 ovs 0.2 ms 826 tries 1 coast 33
+latfix 40 mm
+cell 2 2 d 2 walls L F R 1 1 1 votes L 23 / 23 F 16 / 16 R 19 / 22 front 53 fix -11 th 168 kfh 0.0
+at 2 2 d 2 next 0 t 17.498
+align front 53 move 15 ms 288
+turn -171 err -1.7 ovs 6.0 ms 1579 tries 2 coast 53
+latfix 8 mm
+seen 3 2 d 0 front 40 fix 3 th -6 kfh 0.0
+at 3 2 d 0 next 3 t 22.063
+align front 40 move 2 ms 1
+turn -83 err -2.8 ovs 4.0 ms 1035 tries 2 coast 60
+latfix -10 mm
+seen 3 1 d 3 front 185 fix 13 th -96 kfh 0.0
+at 3 1 d 3 next 2 t 25.838
+align front 185 move -40 ms 628
+turn -90 err 2.8 ovs 2.8 ms 857 tries 1 coast 58
+cell 2 1 d 2 walls L F R 1 0 1 votes L 25 / 28 F 0 / 30 R 21 / 23 front 301 fix 0 th -204 kfh 0.0
+at 2 1 d 2 next 2 t 30.116
+cell 1 1 d 2 walls L F R 1 0 1 votes L 16 / 16 F 0 / 30 R 27 / 28 front 194 fix 1 th -181 kfh 0.0
+at 1 1 d 2 next 2 t 32.373
+cell 0 1 d 2 walls L F R 1 1 0 votes L 15 / 15 F 11 / 12 R 0 / 30 front 58 fix -48 th -188 kfh 0.0
+at 0 1 d 2 next 1 t 34.467
+align front 58 move 20 ms 549
+turn -87 err -0.5 ovs 0.0 ms 844 tries 1 coast 51
+latfix 8 mm
+BUMP - backing off
+seen 0 1 d 1 front 225 fix 0 th -276 kfh 0.0
+at 0 1 d 1 next -1 t 38.593
+no room found
+return [0, 0, 0, 3, 2, 2, 2]
+align front 225 move -50 ms 2154
+turn -85 err 0.5 ovs 0.5 ms 1993 tries 2 coast 28
+latfix 22 mm
+BUMP - backing off
+FRONT GUARD rem 103
+return None
+align front 195 move -54 ms 886
+done t 53.35
