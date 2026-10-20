@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v28 20-Oct 21:30"
+BUILD = "v29 20-Oct 22:00"
 
 try:
     import math
@@ -95,10 +95,10 @@ HW_KEEP_IW        = 1           # 1 = keep the learned L/R motor-imbalance trim 
 HW_STOP_FIX       = 1           # 1 = at each cell stop, a wall seen ahead (<500 mm) fixes the along position
 # Real chassis: 105 mm long, front ToF 65 mm ahead of the axle, so turning on the
 # spot the front corners sweep ~86 mm round the axle against ~94 mm to a wall.
-HW_PIVOT_BACK     = 12.0        # mm: with a wall ahead, turn this far short of the cell centre
+HW_PIVOT_BACK     = 4.0         # mm short of centre before a turn with a wall ahead (12 put it 12 mm towards the post after the turn)
 HW_REVERSE_OUT    = 1           # 1 = leave dead ends backwards (no 180 deg spin between three walls)
 HW_REV_HOME       = 1           # 1 = drive the last straight of the return backwards (no spin in the start cell)
-HW_SPIN_SHIFT     = 15.0        # mm: step this far off a wall before a spin that would swing into it
+HW_SPIN_SHIFT     = 8.0         # mm step off a wall before a risky spin (15 left it off-centre into the next corridor)
 HW_V_REVERSE      = 100.0       # mm/s top speed backwards (slow: more side-wall fixes per mm)
 HW_SENSE_STEPS    = 30          # 10 ms steps of standing-still wall sensing in a NEW cell
 HW_SKIP_SEEN      = 1           # 1 = cells already mapped: no wall sensing, just a quick front fix
