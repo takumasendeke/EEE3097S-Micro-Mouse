@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v24 20-Oct 19:00"
+BUILD = "v25 20-Oct 19:30"
 
 try:
     import math
@@ -82,7 +82,7 @@ HW_VMAX_R         = 0.0         # mm/s at effort 100, RIGHT wheel (0 = same as H
 HW_SIDE_OFFSET    = 0.0         # mm the LEFT side ToF reads more than the right at the same distance (HW_CALIBRATE = 2)
 
 HW_STOP_EACH_CELL = 1           # 1 = stop at every cell centre and sense walls standing still
-HW_SIDE_GUARD     = 40.0        # mm: steer away from a side wall/post closer than this (was 35: post close calls)
+HW_SIDE_GUARD     = 35.0        # mm: steer away from a side wall closer than this (40 kicked the heading at posts)
 HW_FRONT_STOP     = 35.0        # mm: front reflex - blocked below this + speed * HW_FRONT_REACT (was 28: hit walls)
 HW_FRONT_REACT    = 0.15        # s: ToF latency + braking time, so faster = stop earlier
 HW_FRONT_CHECK    = 20          # steps: after each explore turn, look ahead standing still before driving
@@ -113,7 +113,10 @@ HW_TURN_COAST     = 0.08        # s: first guess of coast per deg/s after cuttin
 HW_KICK_L         = 72          # PWM a wheel at rest needs to start (left)
 HW_KICK_R         = 77          # was 82: too strong a kick on the right also yaws it at take-off
 
-HW_STOP_CREEP     = 70.0        # mm/s: slowest speed on the way into a stop (below ~60 one wheel stalls first -> swing)
+HW_STOP_CREEP     = 45.0        # mm/s: slowest speed into a stop (70 arrived too hot); stop swing is fixed by HW_STRAIGHTEN
+HW_STRAIGHTEN     = 2.0         # deg: after every stop, a heading further off than this is corrected before moving on
+HW_EXPLORE_ALL    = 1           # 1 = keep exploring after the room is found, until the whole maze is mapped
+HW_EXPLORE_TMAX   = 200.0       # s: ... but stop exploring after this long once the room is known
 HW_LOOP_FIXED     = 1           # 1 = fixed 10 ms loop period (wait only the rest of the period)
 HW_FRONT_CENTER   = 34.0        # mm: front reading with the axle on the cell centre (log: 32)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
@@ -219,6 +222,8 @@ KICK_L = 0
 KICK_R = 0
 LOOP_FIXED = 0
 STOP_CREEP = 40.0
+STRAIGHTEN = 0.0
+EXPLORE_ALL = 0
 SIDE_OFFSET = 0.0
 FRONT_CENTER = 35.0             # sim: 100 - FRONT_OFF
 TILT_LIM = 0.0
@@ -294,7 +299,7 @@ def select_profile():
     global DEBUG, FRONT_STOP, FRONT_CENTER, TILT_LIM, KF_HEADING, STOP_EACH, WALL_K, GYRO_TRIM, TEST_STRAIGHT, SIDE_AUTO, SIDE_GUARD, TPMM_AUTO, FRONT_SNAP, GYRO_AUTO, ROOM_MAX_DOORS, VMAX_L, VMAX_R, SYSID
     global FRONT_REACT, FRONT_CHECK, TURN_LEAD, TURN_KLIN, TURN_WMIN, ALIGN_MOVE, ARCS, KEEP_IW, STOP_FIX
     global PIVOT_BACK, REVERSE_OUT, REV_HOME, SPIN_SHIFT, V_REVERSE, SENSE_STEPS, SKIP_SEEN, WALL_STOP, ZUPT_STOP
-    global TURN_BB, TURN_PWM, TURN_COAST, KICK_L, KICK_R, LOOP_FIXED, SIDE_OFFSET, STOP_CREEP
+    global TURN_BB, TURN_PWM, TURN_COAST, KICK_L, KICK_R, LOOP_FIXED, SIDE_OFFSET, STOP_CREEP, STRAIGHTEN, EXPLORE_ALL
     IS_SIM = on_simulator()
     if IS_SIM == 1:
         return
@@ -324,6 +329,8 @@ def select_profile():
     KICK_R = HW_KICK_R
     LOOP_FIXED = HW_LOOP_FIXED
     STOP_CREEP = HW_STOP_CREEP
+    STRAIGHTEN = HW_STRAIGHTEN
+    EXPLORE_ALL = HW_EXPLORE_ALL
     MOT_POL_L = HW_MOTOR_POL_L
     MOT_POL_R = HW_MOTOR_POL_R
     ENC_POL_L = HW_ENC_POL_L
@@ -509,7 +516,7 @@ class MazeSolver:
     # Seeds for the exploration floodfill: cells that could complete a
     # plausible room are cheapest, any other unvisited cell costs more.
     def _explore_seeds(self):
-        if self.room is not None:
+        if self.room is not None and not EXPLORE_ALL:
             return [(i, 0) for i in self.room]
         seeds = []
         best = [9] * self.n
@@ -1804,6 +1811,16 @@ class Mouse:
         if self.p11 < 100.0:
             self.p11 = 100.0
 
+    # After a stop: wheels rarely stop at exactly the same moment, so the
+    # heading ends a few degrees off. Correct it before sensing or driving on
+    # (driving off crooked is how the nose clips post edges).
+    def straighten(self):
+        if STRAIGHTEN <= 0.0:
+            return
+        e = wrap180(90.0 * self.d - self.th)
+        if fabs(e) > STRAIGHTEN:
+            self.turn_by(e)
+
     def turn_to(self, nd):
         self.rB = [0.0, 1e9, 2e9]       # new axis: old wall-position readings no longer apply
         delta = wrap180(90.0 * nd - self.th)
@@ -2293,6 +2310,15 @@ class Mouse:
 # Record the walls sensed in cell (x, y) while heading d, mark it visited,
 # check for the room, and return the heading the explorer wants next
 # (-2 = stop here, this cell is in the room).
+# Explore-all mode: keep going after the room is found while time allows.
+def explore_more(m):
+    global EXPLORE_ALL
+    if EXPLORE_ALL and (m.now() - m.t0) / 1000.0 >= HW_EXPLORE_TMAX:
+        EXPLORE_ALL = 0                 # out of time: head for the room now
+        log("explore time up - going to the room")
+    return EXPLORE_ALL
+
+
 def record_cell(solver, x, y, d, wl, wf, wr):
     if solver.inside(x, y):
         solver.set_wall(x, y, (d + 1) & 3, wl)
@@ -2617,6 +2643,10 @@ def mission():
     moves_left = 6 * solver.n
     while nd >= 0 and moves_left > 0:
         moves_left -= 1
+        if solver.room is not None and EXPLORE_ALL and not explore_more(m):
+            nd = solver.next_dir(m.cx, m.cy, m.d)   # re-plan towards the room
+            if nd < 0:
+                break
         bk = (m.d + 2) & 3
         if REVERSE_OUT and nd == bk:
             bx = m.cx + DX[bk]
@@ -2633,7 +2663,8 @@ def mission():
                     fx = m.stop_fix()
                 i = m.cy * solver.cols + m.cx
                 room = solver.check_room()
-                nd = -2 if (room is not None and i in room) else solver.next_dir(m.cx, m.cy, m.d)
+                m.straighten()
+                nd = -2 if (room is not None and i in room and not explore_more(m)) else solver.next_dir(m.cx, m.cy, m.d)
                 log("reverse to", m.cx, m.cy, "d", m.d, "front", m.fmed, "fix", fx, "next", nd,
                     "t", (m.now() - m.t0) / 1000.0)
                 continue
@@ -2648,6 +2679,7 @@ def mission():
                 log("FRONT CHECK: wall ahead after turn, next", nd)
                 continue
         m.explore_drive(solver, V_EXPLORE)
+        m.straighten()
         if STOP_EACH and SKIP_SEEN and solver.visited[m.cy * solver.cols + m.cx]:
             # mapped already: only a quick look ahead to fix the position
             m.front_median(30)
@@ -2666,11 +2698,21 @@ def mission():
             m.kfh = 0.0
         i = m.cy * solver.cols + m.cx
         room = solver.check_room()
-        if room is not None and i in room:
+        if room is not None and i in room and not explore_more(m):
             nd = -2
         else:
             nd = solver.next_dir(m.cx, m.cy, m.d)
         log("at", m.cx, m.cy, "d", m.d, "next", nd, "t", (m.now() - m.t0) / 1000.0)
+    if solver.room is not None and (m.cy * solver.cols + m.cx) not in solver.room:
+        # explored the whole maze: now drive to the room for the pirouette
+        log("maze mapped - going to the room")
+        k = 0
+        while k < 4 and (m.cy * solver.cols + m.cx) not in solver.room:
+            moves = solver.plan(m.cx, m.cy, m.d, solver.room)
+            if not moves:
+                break
+            m.follow(moves, V_EXPLORE, V_TURN)
+            k += 1
     if solver.room is None:
         rm = solver.best_room()
         if rm is not None:
