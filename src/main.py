@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v39 21-Oct 03:00"
+BUILD = "v40 21-Oct 03:30"
 
 try:
     import math
@@ -82,7 +82,7 @@ HW_VMAX_R         = 412.0       # RIGHT wheel (diag 424; a touch lower = a littl
 HW_TURN_LATFIX    = 1           # 1 = after every turn, set the sideways position from still side readings before driving
 HW_PSI_MAX        = 0.07        # rad (~4 deg): max angle it steers to recentre (sim 0.14 ~8 deg = the bends/drift)
 HW_KLAT           = 0.010       # rad heading per mm off-centre (0.012 + noisy sides steered it up to 8 deg)
-HW_SIDE_OFFSET    = 6.0         # mm: + moves the centre line RIGHT (12 overdid it: drifted right)
+HW_SIDE_OFFSET    = 12.0        # mm: + moves the centre line RIGHT (~half in mm); left wheel kept brushing the posts at 6
 
 HW_STOP_EACH_CELL = 1           # 1 = stop at every cell centre and sense walls standing still
 HW_SIDE_GUARD     = 35.0        # mm side reflex (25 let it drift onto the prongs - back to 35)
@@ -1880,9 +1880,18 @@ class Mouse:
                     sr.append(self.dR)
                 n += 1
             self.side_medians(sl, sr)
-        if not (self.sLm and self.sRm):
-            return                      # need BOTH side walls: one noisy side read 84 mm and faked a 40 mm offset
-        z = clamp(0.5 * ((NOM_L - self.sLm) + (self.sRm - NOM_R)), -15.0, 15.0)
+        # a side median only counts if it is plausible for a wall next to a
+        # roughly centred mouse (one noisy side once read 84 mm -> fake 40 mm)
+        okl = self.sLm and fabs(self.sLm - NOM_L) < 25.0
+        okr = self.sRm and fabs(self.sRm - NOM_R) < 25.0
+        if okl and okr:
+            z = clamp(0.5 * ((NOM_L - self.sLm) + (self.sRm - NOM_R)), -15.0, 15.0)
+        elif okl:
+            z = clamp(NOM_L - self.sLm, -10.0, 10.0)
+        elif okr:
+            z = clamp(self.sRm - NOM_R, -10.0, 10.0)
+        else:
+            return
         d = self.d
         dl = 0.6 * (z - (self.lateral(d) - self.cell_lat(self.cx, self.cy, d)))
         self.X -= DY[d] * dl
