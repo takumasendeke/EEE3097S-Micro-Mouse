@@ -1,0 +1,40 @@
+S4 BUILD v36 21-Oct 01:30
+maze 6 x 6 side nom 60.0 start ToF L/C/R 50 453 8190 slot counts [1, 0, 1, 0, 0] gyro gain 1.0
+start walls L F R 1 0 1 centred L/R 56.0 44.0
+cell 1 0 d 0 walls L F R 1 0 1 votes L 22 / 25 F 0 / 30 R 12 / 13 front 373 fix 0 th 2 kfh 0.0
+at 1 0 d 0 next 0 t 3.515
+cell 2 0 d 0 walls L F R 1 0 1 votes L 26 / 29 F 0 / 30 R 13 / 13 front 193 fix 15 th -7 kfh 0.0
+at 2 0 d 0 next 0 t 5.819
+maze is on the LEFT of the start heading
+cell 3 0 d 0 walls L F R 0 1 1 votes L 0 / 30 F 15 / 17 R 22 / 22 front 48 fix -13 th 3 kfh 0.0
+at 3 0 d 0 next 1 t 7.835
+align front 48 move -3 ms 1
+turn 86 err -1.5 ovs 1.5 ms 839 tries 1 coast 42
+cell 3 1 d 1 walls L F R 0 0 1 votes L 0 / 30 F 0 / 30 R 24 / 26 front 203 fix 13 th 84 kfh 0.0
+at 3 1 d 1 next 1 t 11.455
+cell 3 2 d 1 walls L F R 0 1 1 votes L 0 / 30 F 23 / 24 R 22 / 23 front 50 fix 5 th 82 kfh 0.0
+at 3 2 d 1 next 2 t 13.356
+align front 50 move -1 ms 1
+turn 97 err 1.9 ovs 0.0 ms 869 tries 1 coast 36
+cell 2 2 d 2 walls L F R 1 0 0 votes L 13 / 13 F 9 / 28 R 7 / 30 front 109 fix -72 th 189 kfh 0.0
+at 2 2 d 2 next 2 t 17.125
+cell 1 2 d 2 walls L F R 1 0 0 votes L 10 / 10 F 13 / 30 R 10 / 30 front 100 fix -23 th 190 kfh 0.0
+at 1 2 d 2 next 1 t 20.052
+align front 100 move 49 ms 685
+turn -101 err -2.5 ovs 7.1 ms 1460 tries 2 coast 58
+FRONT CHECK: wall ahead after turn, next 2
+align front 42 move -9 ms 711
+turn 88 err 0.0 ovs 3.9 ms 1422 tries 3 coast 56
+latfix 10 mm
+BUMP - backing off
+seen 1 2 d 2 front 173 fix 0 th 163 kfh 0.0
+at 1 2 d 2 next 0 t 27.975
+align skipped, move -86
+align front 173 move -86 ms 3
+turn -163 err -0.1 ovs 5.4 ms 1711 tries 2 coast 52
+FRONT CHECK: wall ahead after turn, next -1
+no room found
+return None
+align skipped, move 80
+align front 173 move 80 ms 3
+done t 36.211
