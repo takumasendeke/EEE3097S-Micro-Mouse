@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v36 21-Oct 01:30"
+BUILD = "v37 21-Oct 02:00"
 
 try:
     import math
@@ -80,8 +80,9 @@ HW_TEST_TURN      = 0           # >0: in the start cell do this many 90 deg turn
 HW_CALIBRATE      = 0           # 1 = calibration run, prints the values to paste below; 2 = also side-sensor offset
 HW_VMAX_R         = 412.0       # RIGHT wheel (diag 424; a touch lower = a little more right drive against the slight right drift)
 HW_TURN_LATFIX    = 1           # 1 = after every turn, set the sideways position from still side readings before driving
-HW_KLAT           = 0.012      # rad of heading per mm off-centre: how hard it recentres (sim 0.008; higher = faster, too high weaves)
-HW_SIDE_OFFSET    = 12.0        # mm: + moves the centre line RIGHT (it hugged the left wall; ~half of this in mm)
+HW_PSI_MAX        = 0.07        # rad (~4 deg): max angle it steers to recentre (sim 0.14 ~8 deg = the bends/drift)
+HW_KLAT           = 0.010       # rad heading per mm off-centre (0.012 + noisy sides steered it up to 8 deg)
+HW_SIDE_OFFSET    = 6.0         # mm: + moves the centre line RIGHT (12 overdid it: drifted right)
 
 HW_STOP_EACH_CELL = 1           # 1 = stop at every cell centre and sense walls standing still
 HW_SIDE_GUARD     = 35.0        # mm side reflex (25 let it drift onto the prongs - back to 35)
@@ -328,7 +329,7 @@ def select_profile():
     global DEBUG, FRONT_STOP, FRONT_CENTER, TILT_LIM, KF_HEADING, STOP_EACH, WALL_K, GYRO_TRIM, TEST_STRAIGHT, SIDE_AUTO, SIDE_GUARD, TPMM_AUTO, FRONT_SNAP, GYRO_AUTO, ROOM_MAX_DOORS, VMAX_L, VMAX_R, SYSID
     global FRONT_REACT, FRONT_CHECK, TURN_LEAD, TURN_KLIN, TURN_WMIN, ALIGN_MOVE, ARCS, KEEP_IW, STOP_FIX
     global PIVOT_BACK, REVERSE_OUT, REV_HOME, SPIN_SHIFT, V_REVERSE, SENSE_STEPS, SKIP_SEEN, WALL_STOP, ZUPT_STOP
-    global KLAT
+    global KLAT, PSI_MAX
     global TURN_BB, TURN_PWM, TURN_COAST, KICK_L, KICK_R, LOOP_FIXED, SIDE_OFFSET, STOP_CREEP, STRAIGHTEN, EXPLORE_ALL, BRAKE_HOLD
     IS_SIM = on_simulator()
     if IS_SIM == 1:
@@ -379,6 +380,7 @@ def select_profile():
     VMAX_R = HW_VMAX_R if HW_VMAX_R > 0.0 else HW_VMAX
     SIDE_OFFSET = HW_SIDE_OFFSET
     KLAT = HW_KLAT
+    PSI_MAX = HW_PSI_MAX
     SYSID = HW_SYSID
     TPMM_AUTO = HW_TPMM_AUTO
     TAU = HW_TAU
