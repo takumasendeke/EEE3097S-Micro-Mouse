@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v25 20-Oct 19:30"
+BUILD = "v26 20-Oct 20:00"
 
 try:
     import math
@@ -114,7 +114,8 @@ HW_KICK_L         = 72          # PWM a wheel at rest needs to start (left)
 HW_KICK_R         = 77          # was 82: too strong a kick on the right also yaws it at take-off
 
 HW_STOP_CREEP     = 45.0        # mm/s: slowest speed into a stop (70 arrived too hot); stop swing is fixed by HW_STRAIGHTEN
-HW_STRAIGHTEN     = 2.0         # deg: after every stop, a heading further off than this is corrected before moving on
+HW_BRAKE_HOLD     = 0           # 1 = gyro-steered roll-out at stops (tested worse in emulation: off)
+HW_STRAIGHTEN     = 0.0         # deg: 0 = off (correction spins after stops looked like wiggling)
 HW_EXPLORE_ALL    = 1           # 1 = keep exploring after the room is found, until the whole maze is mapped
 HW_EXPLORE_TMAX   = 200.0       # s: ... but stop exploring after this long once the room is known
 HW_LOOP_FIXED     = 1           # 1 = fixed 10 ms loop period (wait only the rest of the period)
@@ -131,11 +132,11 @@ HW_V_TURN         = 170.0       # mm/s through smooth 90 deg arcs
 HW_ACCEL          = 1200.0      # mm/s^2
 HW_W_TURN         = 180.0       # deg/s in-place turn ceiling
 HW_ALPHA_TURN     = 1000.0      # deg/s^2
-HW_TURN_TOL       = 1.5         # deg
+HW_TURN_TOL       = 3.0         # deg: accept the spin within this (1.5 caused extra back-and-forth corrections)
 HW_ROOM_DOORS     = 2           # max openings in the target room's rim
 HW_KP_V           = 0.10        # effort per mm/s (common mode)
 HW_KI_V           = 0.6
-HW_KP_W           = 0.06        # effort per deg/s (differential, on gyro)
+HW_KP_W           = 0.08        # effort per deg/s (gyro rate loop; was 0.06 - snappier heading hold)
 
 HW_KI_W           = 0.3         # was 0.5: with the big right dead-band it over-corrected
 
@@ -223,6 +224,7 @@ KICK_R = 0
 LOOP_FIXED = 0
 STOP_CREEP = 40.0
 STRAIGHTEN = 0.0
+BRAKE_HOLD = 0
 EXPLORE_ALL = 0
 SIDE_OFFSET = 0.0
 FRONT_CENTER = 35.0             # sim: 100 - FRONT_OFF
@@ -299,7 +301,7 @@ def select_profile():
     global DEBUG, FRONT_STOP, FRONT_CENTER, TILT_LIM, KF_HEADING, STOP_EACH, WALL_K, GYRO_TRIM, TEST_STRAIGHT, SIDE_AUTO, SIDE_GUARD, TPMM_AUTO, FRONT_SNAP, GYRO_AUTO, ROOM_MAX_DOORS, VMAX_L, VMAX_R, SYSID
     global FRONT_REACT, FRONT_CHECK, TURN_LEAD, TURN_KLIN, TURN_WMIN, ALIGN_MOVE, ARCS, KEEP_IW, STOP_FIX
     global PIVOT_BACK, REVERSE_OUT, REV_HOME, SPIN_SHIFT, V_REVERSE, SENSE_STEPS, SKIP_SEEN, WALL_STOP, ZUPT_STOP
-    global TURN_BB, TURN_PWM, TURN_COAST, KICK_L, KICK_R, LOOP_FIXED, SIDE_OFFSET, STOP_CREEP, STRAIGHTEN, EXPLORE_ALL
+    global TURN_BB, TURN_PWM, TURN_COAST, KICK_L, KICK_R, LOOP_FIXED, SIDE_OFFSET, STOP_CREEP, STRAIGHTEN, EXPLORE_ALL, BRAKE_HOLD
     IS_SIM = on_simulator()
     if IS_SIM == 1:
         return
@@ -330,6 +332,7 @@ def select_profile():
     LOOP_FIXED = HW_LOOP_FIXED
     STOP_CREEP = HW_STOP_CREEP
     STRAIGHTEN = HW_STRAIGHTEN
+    BRAKE_HOLD = HW_BRAKE_HOLD
     EXPLORE_ALL = HW_EXPLORE_ALL
     MOT_POL_L = HW_MOTOR_POL_L
     MOT_POL_R = HW_MOTOR_POL_R
@@ -1400,6 +1403,26 @@ class Mouse:
             k += 1
         return None
 
+    # End of a drive: the wheels never stop at exactly the same moment, which
+    # swung the nose a few degrees. Keep the gyro heading loop running with
+    # zero forward speed while the wheels coast down (one brakes, the other
+    # eases), and only cut the motors once speed and rotation are both ~0.
+    def stop_hold(self, d):
+        if not BRAKE_HOLD:
+            self.settle()
+            return
+        # both wheels keep driving FORWARD while the speed ramps down fast, so
+        # the gyro can steer to the end; never opposite PWMs (sticky wheels
+        # turn those into jerks)
+        vc = self.v if self.v > 0.0 else 0.0
+        n = 0
+        while n < 20 and vc > 12.0:
+            vc *= 0.7
+            psi = wrap180(self.th - 90.0 * d)
+            self.step(vc, clamp(-KPSI * psi, -40.0, 40.0))
+            n += 1
+        self.settle()
+
     # Stop and wait until the wheels are really still.
     def settle(self):
         n = 0
@@ -1980,7 +2003,7 @@ class Mouse:
             r2 = self.wall_rem(self.a_goal)
             if r2 < rem:
                 rem = r2
-            if rem <= self.v * TAU * 0.5 + 1.0:
+            if rem <= self.v * (TAU * 0.5 + (0.025 if BRAKE_HOLD else 0.0)) + 1.0:
                 break
             if 0 < self.dC < 15:
                 guard += 1
@@ -2017,7 +2040,7 @@ class Mouse:
             steps += 1
         if KEEP_IW:
             self.iw_fwd = self.iw
-        self.settle()
+        self.stop_hold(d)
         self.vc = 0.0
         self.cx = x0 + DX[d] * goal
         self.cy = y0 + DY[d] * goal
@@ -2040,7 +2063,7 @@ class Mouse:
             if v_end > 0.0:
                 if rem <= 0.0:
                     break
-            elif rem <= self.v * TAU * 0.5 + 1.0:
+            elif rem <= self.v * (TAU * 0.5 + (0.025 if BRAKE_HOLD else 0.0)) + 1.0:
                 break
             if 0 < self.dC < 15 or self.bump or self.front_block():
                 if self.bump:
@@ -2164,7 +2187,7 @@ class Mouse:
                 self.arc(d, moves[j], ex, ey, vturn)
             else:
                 self.straight(d, latc, ce, 0.0, vmax)
-                self.settle()
+                self.stop_hold(d)
                 self.vc = 0.0
                 if self.lost:
                     break
