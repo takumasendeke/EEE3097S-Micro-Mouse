@@ -1,0 +1,39 @@
+S4 BUILD v65 ENCFIX 27-Oct
+mem free 30416
+gyro zero -1.6 deg/s spread 0.04
+battery 3.88 V 
+maze 4 x 6 side nom 52.0 start ToF L/C/R 67 249 57 slot counts [1, 0, 1, 0, 1] gyro gain 1.0
+start walls L F R 1 0 1 centred L/R 44.0 48.0
+latfix -2 mm corr -1 g 87 piv 0
+encoder check L 99 R 125 ticks counted, L 99 R 125 after the gyro check
+edge L wo e -4 fix -3 new p 18
+maze is on the LEFT of the start heading
+cell 1 0 d 0 walls L F R 0 1 1 votes L 0 / 80 F 32 / 32 R 64 / 69 front 46 fix -10 th 7 sa 3
+at 1 0 d 0 next 1 t 4.841
+align front 46 fix -1 move 6 sa 3 piv 0 ms 492
+turn 93 err -4.3 ovs 4.3 ms 1373 tries 3 coast 53 trim 3
+latfix 3 mm corr 2 g 70 piv 0
+edge L ow e -11 fix -5 new p 18
+cell 1 1 d 1 walls L F R 1 0 1 votes L 54 / 54 F 0 / 80 R 63 / 68 front 206 fix 0 th 95 sa 14
+at 1 1 d 1 next 1 t 11.234
+enc wrong-way steps L 0 R 2
+edge L wo e 20 fix 14 new p 18
+cell 1 2 d 1 walls L F R 0 1 1 votes L 0 / 80 F 35 / 35 R 59 / 67 front 38 fix -3 th 86 sa 3
+at 1 2 d 1 next 2 t 14.517
+align front 38 fix 0 move 0 sa 3 piv 0 ms 6
+turn 93 err 1.6 ovs 0.0 ms 751 tries 1 coast 42 trim 5
+latfix 8 mm corr 4 g 76 piv 0
+edge R wo e 10 fix 4 new p 18
+cell 0 2 d 2 walls L F R 0 1 0 votes L 0 / 80 F 34 / 37 R 11 / 80 front 38 fix -5 th 183 sa 3
+at 0 2 d 2 next 3 t 19.868
+align front 38 fix -1 move 0 sa 3 piv 0 ms 3
+turn 86 err 2.1 ovs 11.0 ms 1339 tries 3 coast 27 trim 5
+latfix 15 mm corr 12 g 75 piv 0
+cell 0 1 d 3 walls L F R 1 1 1 votes L 40 / 41 F 27 / 29 R 63 / 76 front 52 fix -17 th 263 sa 3
+at 0 1 d 3 next 1 t 25.387
+enc wrong-way steps L 0 R 4
+align front 52 fix -2 move 11 sa 3 piv 0 ms 526
+turn -182 err -5.3 ovs 9.1 ms 2000 tries 3 coast 64 trim 0
+latfix 8 mm corr 12 g 91 piv 0
+pass 0 2
+CONTACT - run stopped (any contact fails the demo)
