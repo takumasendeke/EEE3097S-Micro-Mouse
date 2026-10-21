@@ -1,0 +1,82 @@
+S4 BUILD v50 21-Oct 21:00
+maze 4 x 6 side nom 52.0 start ToF L/C/R 84 211 49 slot counts [1, 0, 1, 0, 1] gyro gain 1.0
+start walls L F R 1 0 1 centred L/R 54.5 54.5
+edge L wo e 1 fix 1 new p 18
+maze is on the LEFT of the start heading
+cell 1 0 d 0 walls L F R 0 1 1 votes L 0 / 40 F 21 / 21 R 35 / 35 front 36 fix -6 th 0 sa 3
+at 1 0 d 0 next 1 t 4.048
+align front 36 fix -1 move -3 sa 3 ms 180
+turn 89 err 1.6 ovs 0.0 ms 1039 tries 1 coast 33
+latfix -2 mm corr 3 g 50
+edge L ow e -11 fix -7 new p 18
+edge R wo e 18 fix 7 new p 18
+cell 1 1 d 1 walls L F R 1 0 0 votes L 27 / 27 F 0 / 40 R 0 / 40 front 208 fix 0 th 89 sa 10
+at 1 1 d 1 next 1 t 8.76
+cell 1 2 d 1 walls L F R 0 1 1 votes L 0 / 40 F 14 / 14 R 30 / 34 front 49 fix -12 th 84 sa 4
+at 1 2 d 1 next 2 t 11.365
+align front 39 fix 1 move 3 sa 3 ms 401
+turn 95 err -2.0 ovs 2.0 ms 1007 tries 1 coast 38
+latfix 8 mm corr 3 g 52
+edge R wo e 18 fix 12 new p 18
+cell 0 2 d 2 walls L F R 0 1 0 votes L 0 / 40 F 10 / 11 R 1 / 40 front 57 fix -14 th 182 sa 4
+at 0 2 d 2 next 3 t 16.15
+align front 59 fix -8 move 12 sa 3 ms 1078
+turn 89 err -0.4 ovs 0.4 ms 901 tries 1 coast 35
+latfix -10 mm corr -2 g 42
+edge L ow e 7 fix 5 map p 10
+side nom 53.3
+cell 0 1 d 3 walls L F R 1 1 1 votes L 27 / 27 F 21 / 21 R 33 / 36 front 36 fix -4 th 271 sa 3
+at 0 1 d 3 next 1 t 21.78
+align front 37 fix -1 move -2 sa 3 ms 146
+turn -178 err 2.6 ovs 2.6 ms 1527 tries 1 coast 41
+latfix 7 mm corr -5 g 63
+pass 0 2
+BUMP - backing off
+hit at a known opening - map kept
+latfix -4 mm corr 0 g 26
+seen 0 2 d 1 front 182 fix 0 th 92 sa 22
+at 0 2 d 1 next 1 t 29.441
+BUMP - backing off
+hit at a known opening - map kept
+latfix 3 mm corr -3 g 30
+seen 0 2 d 1 front 173 fix 0 th 91 sa 27
+at 0 2 d 1 next 1 t 32.193
+SLIP - wheels -58 gyro 8 deg/s
+BUMP - backing off
+turn -9 err 1.7 ovs 1.7 ms 343 tries 1 coast 49
+latfix 13 mm corr 6 g 42
+cell 0 3 d 1 walls L F R 1 0 0 votes L 15 / 16 F 0 / 40 R 10 / 40 front 178 fix 0 th 88 sa 40
+at 0 3 d 1 next 0 t 35.555
+align skipped, move 81
+turn -88 err -0.1 ovs 0.0 ms 5264 tries 1 coast 49
+front 96 - between cells: creeping to the wall
+re-centred in 2 3 front 97
+cell 2 3 d 0 walls L F R 0 0 0 votes L 0 / 40 F 20 / 40 R 0 / 40 front 97 fix 0 th 0 sa 3
+at 2 3 d 0 next 0 t 46.855
+cell 3 3 d 0 walls L F R 0 1 0 votes L 0 / 40 F 28 / 40 R 0 / 40 front 74 fix -25 th 0 sa 3
+at 3 3 d 0 next 3 t 50.754
+align front 74 fix -4 move 30 sa 4 ms 761
+turn -90 err -2.0 ovs 0.0 ms 1021 tries 1 coast 38
+latfix 15 mm corr 7 g 46
+front 119 - between cells: creeping to the wall
+re-centred in 3 2 front 48
+cell 3 2 d 3 walls L F R 1 1 0 votes L 11 / 11 F 33 / 38 R 4 / 40 front 62 fix -9 th -76 sa 3
+at 3 2 d 3 next 2 t 58.73
+align front 62 fix -2 move 21 sa 4 ms 639
+turn -103 err 0.7 ovs 3.2 ms 1831 tries 3 coast 46
+FRONT CHECK: wall ahead after turn, next 1
+align front 47 fix 6 move 11 sa 4 ms 1431
+turn -88 err -1.6 ovs 4.7 ms 1183 tries 2 coast 53
+latfix 3 mm corr -1 g 37
+front 87 - between cells: creeping to the wall
+re-centred in 3 3 front 61
+seen 3 3 d 1 front 61 fix 0 th -258 sa 3
+at 3 3 d 1 next 2 t 69.439
+align front 61 fix 0 move 23 sa 4 ms 706
+turn 78 err 2.4 ovs 0.0 ms 979 tries 1 coast 36
+latfix 15 mm corr 1 g 49
+FRONT CHECK: wall ahead after turn, next -1
+no room found
+return None
+align front 54 fix -24 move 12 sa 4 ms 1665
+turn 181 err -4.1 ovs 13.6 ms 11371 tries 3 coast 85
