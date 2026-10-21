@@ -58,10 +58,8 @@ HW_MOTOR_POL_L    = 1             # flipped for the Oct-2026 MicroPython firmwar
 HW_MOTOR_POL_R    = 1
 HW_ENC_POL_L      = -1
 HW_ENC_POL_R      = 1
-
 HW_LEFT_DEADBAND  = 20.0        # diag.py sweep 20 Oct: rolling dead-band (61 over-drove every command by ~40 PWM)
 HW_RIGHT_DEADBAND = 15.0        # diag.py sweep: 15.2
-
 HW_TICKS_PER_M    = 5709.0      # back to measured: the overshoot came from the wrong dead-band, not the encoders
 HW_GYRO_GAIN      = 1.0         # measured: 360 deg by hand reads +360 (0 = auto-measure at start)
 HW_CAL_SAMPLES    = 150         # start-up gyro samples (mouse still)
@@ -74,23 +72,23 @@ HW_SIDE_X         = 50.0        # mm side ToF ahead of the axle
 HW_FRONT_OFF      = 57.0        # mm front ToF ahead of the axle (info only: the code uses CELL/2 - HW_FRONT_CENTER)
 HW_WALL_K         = 0.0         # deg/s of steering per mm off-centre, straight from side ToF
 HW_GYRO_TRIM      = 0.0         # deg/s added to gyro bias. Drifts RIGHT -> make it NEGATIVE (see straight test)
-
 HW_TEST_STRAIGHT  = 0           # >0: just drive this many cells straight and stop (calibration)
 HW_TEST_TURN      = 0           # >0: in the start cell do this many 90 deg turns left, then right, print each
 HW_CALIBRATE      = 0           # 1 = calibration run, prints the values to paste below; 2 = also side-sensor offset
-
 HW_RIGHT_SCALE    = .95        # STRAIGHT DRIVING: right wheel power x this. Leans/ends LEFT -> 0.97, 0.95 ... ; leans RIGHT -> 1.03
 HW_KPSI           = 6.0         # how hard it steers back onto its heading (1/s). Weaves/over-corrects -> 6, then 5; sluggish -> 10
 HW_VMAX_R         = 424.0       # RIGHT wheel, as measured by diag.py (412 gave the right wheel extra drive: v54 drifted left)
-
 HW_TURN_LATFIX    = 1           # 1 = after every turn, set the sideways position from still side readings before driving
 HW_PSI_MAX        = 0.07        # rad (~4 deg): max angle it steers to recentre (sim 0.14 ~8 deg = the bends/drift)
 HW_KLAT           = 0.010       # rad heading per mm off-centre (0.007 tested worse)
-HW_SIDE_OFFSET    = 8.0         # mm: MOVE IT RIGHT ON AVERAGE: + shifts the centre line RIGHT by half this (8 = 4 mm). More room left -> 12, 16
+
+HW_SIDE_OFFSET    = 6         # mm: MOVE IT RIGHT ON AVERAGE: + shifts the centre line RIGHT by half this (8 = 4 mm). More room left -> 12, 16
 
 HW_STOP_EACH_CELL = 0           # 0 = continuous: walls sensed on the move, stops only to turn (1 = v53: stop on every cell)
+
 HW_SIDE_GUARD_L   = 45.0        # mm: LEFT side reflex starts this close (steers right sooner). Still clips left -> 50
 HW_SIDE_GUARD     = 35.0        # mm side reflex (25 let it drift onto the prongs - back to 35)
+
 HW_FRONT_STOP     = 30.0        # mm: front reflex - blocked below this + speed * HW_FRONT_REACT (centre reads 37 now)
 HW_FRONT_REACT    = 0.15        # s: ToF latency + braking time, so faster = stop earlier
 HW_FRONT_CHECK    = 30          # steps: after each explore turn, look ahead standing still (also feeds latfix)
