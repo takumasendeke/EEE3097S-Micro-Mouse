@@ -1,0 +1,177 @@
+S4 BUILD v70 LANE 29-Oct
+mem free 29552
+gyro zero -0.96 deg/s spread 0.03
+battery 3.67 V - LOW: charge before testing
+maze 4 x 6 side nom 52.0 start ToF L/C/R 46 197 62 slot counts [1, 0, 1, 0, 1] gyro gain 1.0
+start walls L F R 1 0 1 centred L/R 49.5 53.5
+latfix -1 mm corr -1 g 87 hdg 0 side L/R 51 52 piv ccw/cw 0 0
+encoder check L 116 R 130 ticks counted, L 116 R 130 after the gyro check
+edge L wo e -1 fix 0 new p 18
+maze is on the LEFT of the start heading
+stop lat -1 corr 0 hdg fix 0.0
+cell 1 0 d 0 walls L F R 0 1 1 votes L 0 / 80 F 35 / 35 R 64 / 64 front 39 fix -4 th 0 sa 3 side 0 52
+at 1 0 d 0 next 1 t 5.44
+align front 39 fix 0 move 0 sa 3 piv 0 tpm 5791 ms 3
+turn 89 err 0.0 ovs 0.0 ms 797 tries 1 coast 40 trim -8
+latfix -1 mm corr 4 g 78 hdg 0 side L/R 0 52 piv ccw/cw 0 0
+edge L ow e -19 fix -8 new p 18
+side nom 51.2
+stop lat 8 corr 1 hdg fix 2.3
+cell 1 1 d 1 walls L F R 1 0 1 votes L 62 / 62 F 0 / 80 R 70 / 75 front 390 fix 0 th 94 sa 13 side 38 63
+at 1 1 d 1 next 1 t 11.591
+edge L wo e 5 fix 3 new p 18
+edge R wo e 0 fix 0 new p 18
+cell 1 2 d 1 walls L F R 0 0 0 votes L 0 / 80 F 0 / 80 R 0 / 79 front 221 fix 0 th 88 sa 12 side 0 0
+at 1 2 d 1 next 1 t 15.844
+edge L ow e 7 fix 4 new p 18
+edge R ow e 0 fix 0 new p 18
+stop lat 1 corr 3 hdg fix 0.1
+cell 1 3 d 1 walls L F R 1 1 1 votes L 60 / 63 F 41 / 41 R 67 / 71 front 40 fix -3 th 88 sa 3 side 51 54
+at 1 3 d 1 next 3 t 20.336
+align front 40 fix 0 move 1 sa 3 piv 0 tpm 5811 ms 17
+turn -185 err -0.8 ovs 0.0 ms 1385 tries 1 coast 38 trim 5
+latfix 2 mm corr 1 g 92 hdg 0 side L/R 42 53 piv ccw/cw 0 0
+edge L wo e -6 fix -2 map p 13
+edge R wo e -6 fix -1 map p 13
+seen 1 2 d 3 front 413 fix 0 th -90 sa 11
+at 1 2 d 3 next 0 t 26.625
+enc wrong-way steps L 0 R 2
+align front 413 fix 0 move -5 sa 11 piv 0 tpm 5811 ms 411
+turn 88 err -1.5 ovs 1.5 ms 841 tries 1 coast 38 trim -4
+cell 2 2 d 0 walls L F R 0 0 0 votes L 0 / 80 F 0 / 77 R 0 / 80 front 491 fix 0 th 0 sa 19 side 0 0
+at 2 2 d 0 next 0 t 32.878
+enc wrong-way steps L 2 R 2
+edge L ow e -14 fix -11 new p 13
+stop lat 11 corr 3 hdg fix 0.0
+cell 3 2 d 0 walls L F R 1 0 0 votes L 60 / 63 F 0 / 80 R 0 / 80 front 401 fix 0 th -11 sa 17 side 48 0
+at 3 2 d 0 next 3 t 37.413
+align front 401 fix 0 move -7 sa 17 piv 0 tpm 5811 ms 611
+turn -98 err 0.7 ovs 0.7 ms 848 tries 1 coast 38 trim 2
+edge R ow e -1 fix 0 new p 12
+stop lat -6 corr -1 hdg fix 0.0
+cell 3 1 d 3 walls L F R 0 0 1 votes L 0 / 80 F 0 / 80 R 65 / 66 front 222 fix 0 th -86 sa 14 side 0 50
+at 3 1 d 3 next 0 t 44.086
+align front 222 fix 0 move -4 sa 14 piv 0 tpm 5811 ms 779
+turn 88 err 2.3 ovs 6.8 ms 1191 tries 2 coast 66 trim -5
+edge R ow e 0 fix 0 new p 12
+edge L ow e -6 fix -2 new p 12
+stop lat -5 corr -1 hdg fix 0.0
+cell 4 1 d 0 walls L F R 1 0 1 votes L 52 / 56 F 0 / 80 R 58 / 62 front 225 fix 0 th 1 sa 12 side 55 50
+at 4 1 d 0 next 0 t 51.22
+enc wrong-way steps L 3 R 2
+stop lat -13 corr -2 hdg fix 0.0
+cell 5 1 d 0 walls L F R 1 1 0 votes L 57 / 59 F 47 / 48 R 0 / 80 front 43 fix -6 th 9 sa 3 side 55 0
+at 5 1 d 0 next 3 t 55.363
+align front 43 fix -1 move 4 sa 3 piv 0 tpm 5826 ms 423
+turn -91 err -0.5 ovs 5.3 ms 1245 tries 2 coast 73 trim 1
+latfix -8 mm corr -13 g 79 hdg 0 side L/R 58 0 piv ccw/cw 0 -1
+stop lat -6 corr -4 hdg fix 0.0
+cell 5 0 d 3 walls L F R 1 1 0 votes L 64 / 66 F 31 / 31 R 0 / 80 front 43 fix -3 th -89 sa 3 side 56 0
+at 5 0 d 3 next 2 t 62.055
+enc wrong-way steps L 5 R 3
+align front 43 fix 0 move 6 sa 3 piv -1 tpm 5888 ms 468
+turn -88 err -0.4 ovs 8.0 ms 1159 tries 2 coast 74 trim 4
+latfix 0 mm corr -3 g 75 hdg 0 side L/R 49 0 piv ccw/cw 0 -1
+stop lat 1 corr 0 hdg fix 1.4
+cell 4 0 d 2 walls L F R 1 0 1 votes L 50 / 53 F 0 / 80 R 67 / 69 front 406 fix 0 th -178 sa 17 side 45 52
+at 4 0 d 2 next 2 t 68.779
+edge R wo e -13 fix -10 map p 14
+stop lat -3 corr -5 hdg fix 0.0
+cell 3 0 d 2 walls L F R 1 0 0 votes L 66 / 70 F 0 / 80 R 0 / 80 front 214 fix 0 th -190 sa 15 side 61 0
+at 3 0 d 2 next 2 t 73.643
+stop lat -8 corr -2 hdg fix 0.0
+cell 2 0 d 2 walls L F R 1 1 0 votes L 65 / 74 F 32 / 32 R 0 / 80 front 33 fix -1 th -177 sa 3 side 55 0
+at 2 0 d 2 next 1 t 77.858
+align front 33 fix 0 move -3 sa 3 piv -1 tpm 5897 ms 247
+turn -91 err 2.7 ovs 2.7 ms 1036 tries 2 coast 70 trim 3
+latfix 4 mm corr 1 g 77 hdg -2 side L/R 47 0 piv ccw/cw 0 0
+edge R ow e 0 fix 0 map p 14
+stop lat 2 corr 2 hdg fix -1.0
+cell 2 1 d 1 walls L F R 1 0 1 votes L 67 / 70 F 0 / 80 R 60 / 61 front 410 fix 0 th -275 sa 14 side 52 53
+at 2 1 d 1 next 1 t 84.226
+edge L wo e 6 fix 4 map p 13
+edge R wo e -6 fix -2 map p 13
+pass 2 2
+edge L ow e 12 fix 7 map p 15
+stop lat 0 corr 3 hdg fix 0.0
+cell 2 3 d 1 walls L F R 1 1 0 votes L 66 / 71 F 34 / 35 R 0 / 80 front 47 fix -10 th -272 sa 3 side 52 0
+at 2 3 d 1 next 0 t 90.878
+enc wrong-way steps L 5 R 4
+align front 47 fix -1 move 7 sa 3 piv 0 tpm 5959 ms 513
+turn -91 err -2.1 ovs 7.1 ms 1183 tries 2 coast 79 trim 4
+latfix 0 mm corr 0 g 77 hdg 2 side L/R 48 0 piv ccw/cw 0 0
+edge R ow e 10 fix 4 map p 17
+stop lat 0 corr 0 hdg fix 0.8
+cell 3 3 d 0 walls L F R 1 1 1 votes L 57 / 58 F 56 / 56 R 62 / 66 front 45 fix -1 th -355 sa 3 side 46 58
+at 3 3 d 0 next 2 t 97.588
+align front 45 fix 0 move 7 sa 3 piv 0 tpm 5982 ms 95
+turn -182 err 1.5 ovs 1.5 ms 1495 tries 2 coast 61 trim 6
+latfix 2 mm corr 2 g 92 hdg -1 side L/R 49 56 piv ccw/cw 0 0
+edge L wo e 10 fix 3 map p 16
+seen 2 3 d 2 front 63 fix -4 th -537 sa 3
+at 2 3 d 2 next 3 t 103.19
+enc wrong-way steps L 6 R 4
+align front 63 fix 0 move 24 sa 4 piv 0 tpm 6051 ms 719
+turn 95 err 2.4 ovs 0.0 ms 843 tries 1 coast 53 trim -6
+latfix 0 mm corr 16 g 77 hdg -2 side L/R 0 51 piv ccw/cw 0 0
+edge R wo e 0 fix 0 map p 16
+seen 2 2 d 3 front 368 fix 0 th -449 sa 13
+at 2 2 d 3 next 0 t 108.876
+align front 368 fix 0 move -5 sa 14 piv 0 tpm 6051 ms 497
+turn 88 err 2.2 ovs 7.3 ms 1283 tries 2 coast 69 trim -13
+edge L ow e -6 fix -5 map p 15
+pass 3 2
+edge R ow e 5 fix 4 map p 16
+edge L wo e 2 fix 1 new p 16
+stop lat 3 corr 3 hdg fix 0.0
+cell 4 2 d 0 walls L F R 0 0 1 votes L 0 / 79 F 0 / 80 R 63 / 69 front 219 fix 0 th -360 sa 13 side 0 57
+at 4 2 d 0 next 0 t 118.365
+enc wrong-way steps L 7 R 4
+stop lat 2 corr 2 hdg fix 0.0
+cell 5 2 d 0 walls L F R 0 1 1 votes L 0 / 80 F 31 / 31 R 64 / 67 front 41 fix -7 th -363 sa 3 side 0 53
+at 5 2 d 0 next 1 t 122.857
+align front 41 fix 0 move 2 sa 3 piv 0 tpm 6051 ms 3
+turn 93 err -2.1 ovs 2.1 ms 1010 tries 1 coast 63 trim -14
+latfix 9 mm corr 5 g 79 hdg 2 side L/R 0 65 piv ccw/cw -1 -1
+ROOM found at 4 2 doors 1
+stop lat -8 corr -3 hdg fix 0.0
+cell 5 3 d 1 walls L F R 0 1 1 votes L 0 / 80 F 53 / 53 R 62 / 65 front 48 fix -10 th -264 sa 3 side 0 50
+at 5 3 d 1 next -2 t 128.677
+PIROUETTE at 5 3
+turn 84 err 3.2 ovs 5.4 ms 2237 tries 3 coast 49 trim -10
+spin spot walls 3 d 2
+turn -360 err -0.1 ovs 0.0 ms 2258 tries 1 coast 47 trim 4
+return [3, 2, 2, 2, 2, 3, 3, 2]
+align front 239 fix 0 move 1 sa 9 piv -1 tpm 6051 ms 98
+turn 86 err 2.3 ovs 6.8 ms 1257 tries 2 coast 71 trim -6
+latfix -6 mm corr 0 g 77 hdg -2 side L/R 58 0 piv ccw/cw -1 -1
+align front 40 fix -2 move 2 sa 3 piv -1 tpm 6051 ms 1107
+turn -99 err -1.7 ovs 8.8 ms 1381 tries 2 coast 83 trim 0
+latfix -5 mm corr -7 g 77 hdg 1 side L/R 54 0 piv ccw/cw -2 -2
+stop lat 5 corr 4 hdg fix 0.0
+edge R ow e 9 fix 7 map p 17
+stop lat -5 corr -3 hdg fix 0.0
+edge R wo e 15 fix 12 map p 15
+align front 243 fix 0 move -5 sa 25 piv -2 tpm 6051 ms 591
+turn 87 err -1.7 ovs 1.7 ms 867 tries 1 coast 79 trim -7
+edge R ow e -8 fix -7 map p 13
+edge L ow e 1 fix 0 map p 13
+stop lat -7 corr -8 hdg fix 0.0
+align front 37 fix -4 move 0 sa 3 piv -2 tpm 6051 ms 952
+turn -96 err -3.3 ovs 3.1 ms 1427 tries 3 coast 68 trim 0
+latfix 4 mm corr -3 g 76 hdg 3 side L/R 43 0 piv ccw/cw -2 -1
+align front 40 fix -4 move 0 sa 3 piv 0 tpm 6051 ms 1259
+turn 176 err 0.0 ovs 0.0 ms 1507 tries 2 coast 56 trim -19
+sprint [0, 1, 1, 0, 0, 0]
+align front 44 fix -22 move 2 sa 3 piv -2 tpm 6051 ms 1163
+turn 85 err -0.6 ovs 0.6 ms 1137 tries 1 coast 49 trim -11
+latfix 7 mm corr 0 g 72 hdg 0 side L/R 0 62 piv ccw/cw -3 -2
+edge L ow e 26 fix 15 map p 16
+edge L wo e 8 fix 6 map p 16
+align front 217 fix 0 move -15 sa 16 piv -2 tpm 6051 ms 742
+turn -93 err -2.0 ovs 7.1 ms 1344 tries 2 coast 78 trim 1
+latfix 9 mm corr 2 g 93 hdg 2 side L/R 50 77 piv ccw/cw -3 -2
+edge L ow e 44 fix 40 map p 21
+SLIP - wheels 93 gyro -1 deg/s  L 0 R 176 mm/s
+LEFT ENCODER stopped counting while driving (cable / battery?)
+CONTACT - run stopped (any contact fails the demo)
