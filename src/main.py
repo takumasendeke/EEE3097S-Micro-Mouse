@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v63b STABLE 26-Oct"
+BUILD = "v64 STABLE 26-Oct"
 
 try:
     import math
@@ -2106,7 +2106,11 @@ class Mouse:
         d = self.d
         bnd = CELL * float(round(ae / CELL))
         e = bnd + (self.ep if old == 1 else -self.ep) - ae
-        if fabs(e) > 25.0:             # v62: a -30 edge moved it 24 mm right before a contact
+        # accept what the current uncertainty allows: ~25 mm once lined up on a
+        # wall, up to ~40-60 mm while unsure (a start placed a few cm off -
+        # v63's fixed 25 mm blocked exactly that correction)
+        sa = self.sa()
+        if fabs(e) > min(60.0, 2.0 * _sqrt(sa * sa + 144.0)):
             return
         sd = (d + 1) & 3 if s == 0 else (d + 3) & 3
         bit = 1 << sd
@@ -3194,6 +3198,12 @@ def _mission():
     wl, wf, wr = m.start_walls()
     wl, wr = m.side_check(wl, wr, wf)
     log("start walls L F R", wl, wf, wr, "centred L/R", NOM_L, NOM_R)
+    if POS_MODEL and not IS_SIM:
+        # placed a few mm off-centre? the still side readings just taken say
+        # by how much: set the sideways position now, not over the first cells
+        m.p11 = 100.0
+        m.lat_fix(0)
+        m.sa0 = 15.0                    # along: only as good as the placement until a wall or edge fixes it
     nd = record_cell(solver, 0, 0, 0, wl, wf, wr)
     moves_left = 6 * solver.n
     while nd >= 0 and moves_left > 0:
