@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v59 24-Oct 12:00"
+BUILD = "v60 STABLE 24-Oct"
 
 try:
     import math
@@ -75,18 +75,18 @@ HW_GYRO_TRIM      = 0.0         # deg/s added to gyro bias. Drifts RIGHT -> make
 HW_TEST_STRAIGHT  = 0           # >0: just drive this many cells straight and stop (calibration)
 HW_TEST_TURN      = 0           # >0: in the start cell do this many 90 deg turns left, then right, print each
 HW_CALIBRATE      = 0           # 1 = calibration run, prints the values to paste below; 2 = also side-sensor offset
-HW_RIGHT_SCALE    = .95        # STRAIGHT DRIVING: right wheel power x this. Leans/ends LEFT -> 0.97, 0.95 ... ; leans RIGHT -> 1.03
-HW_KPSI           = 6.0         # how hard it steers back onto its heading (1/s). Weaves/over-corrects -> 6, then 5; sluggish -> 10
-HW_VMAX_R         = 424.0       # RIGHT wheel, as measured by diag.py (412 gave the right wheel extra drive: v54 drifted left)
+HW_RIGHT_SCALE    = 1.00        # straight driving: right wheel power x this, as v53. Ends up left -> 0.97
+HW_KPSI           = 8.0         # heading loop (1/s), as v53 (the only settings that completed mazes). Wobbles -> 6
+HW_VMAX_R         = 412.0       # RIGHT wheel, as v53 (completed mazes; v55 tried 424)
 HW_TURN_LATFIX    = 1           # 1 = after every turn, set the sideways position from still side readings before driving
 HW_PSI_MAX        = 0.07        # rad (~4 deg): max angle it steers to recentre (sim 0.14 ~8 deg = the bends/drift)
 HW_KLAT           = 0.010       # rad heading per mm off-centre (0.007 tested worse)
 
-HW_SIDE_OFFSET    = 6         # mm: MOVE IT RIGHT ON AVERAGE: + shifts the centre line RIGHT by half this (8 = 4 mm). More room left -> 12, 16
+HW_SIDE_OFFSET    = 0.0         # mm: + shifts the centre line RIGHT by half (v53: 0; 6-8 overshot)
 
-HW_STOP_EACH_CELL = 0           # 0 = continuous: walls sensed on the move, stops only to turn (1 = v53: stop on every cell)
+HW_STOP_EACH_CELL = 1           # 1 = STABLE: stop on every cell centre and sense walls standing still (v53 finished mazes this way)
 
-HW_SIDE_GUARD_L   = 45.0        # mm: LEFT side reflex starts this close (steers right sooner). Still clips left -> 50
+HW_SIDE_GUARD_L   = 35.0        # mm: left side reflex (same as the right, as in v53)
 HW_SIDE_GUARD     = 35.0        # mm side reflex (25 let it drift onto the prongs - back to 35)
 
 HW_FRONT_STOP     = 30.0        # mm: front reflex - blocked below this + speed * HW_FRONT_REACT (centre reads 37 now)
@@ -106,7 +106,7 @@ HW_REVERSE_OUT    = 0           # 0 = 180 spin in dead ends (reversing is blind:
 HW_REV_HOME       = 0           # 0 = drive into the start forwards, then spin to face the start heading
 HW_SPIN_SHIFT     = 8.0         # mm step off a wall before a risky spin (15 left it off-centre into the next corridor)
 HW_V_REVERSE      = 100.0       # mm/s top speed backwards (slow: more side-wall fixes per mm)
-HW_SENSE_STEPS    = 40          # 10 ms steps of standing-still wall sensing in a NEW cell (more data)
+HW_SENSE_STEPS    = 60          # 10 ms steps of standing-still wall sensing per NEW cell (v53: 40)
 HW_SKIP_SEEN      = 1           # 1 = cells already mapped: no wall sensing, just a quick front fix
 HW_WALL_STOP      = 0           # 0 = stop on the position estimate (the near front wall corrects it while approaching)
 HW_ZUPT_STOP      = 1           # 1 = re-estimate the gyro bias while standing still (both wheels dead still)
@@ -139,22 +139,22 @@ HW_SIDE_NOM       = 52.0        # mm side reading with the axle centred (measure
 HW_NOM_L          = 0.0         # mm LEFT reading at the TRUE centre, from workspace/centre_test.py (0 = measure at start, re-learn)
 HW_NOM_R          = 0.0         # mm RIGHT reading at the TRUE centre (set both, or neither)
 HW_TOF_LAG        = 0.02        # s: age of a ToF reading (the mouse has moved speed x lag since)
-HW_ALIGN_TOL      = 4.0         # mm: before a turn, move to the cell centre if further off than this
+HW_ALIGN_TOL      = 3.0         # mm: before a turn, move to the cell centre if further off than this
 HW_ON_CONTACT     = 1           # 1 = any contact (BUMP/STALL/PINNED/SLIP/turn blocked) stops the run; 0 = log it, drive on
 HW_POST_BLANK     = 30.0        # mm: ignore side readings while the side sensor is this close to a cell boundary (posts, wall ends)
 HW_SPIN_MATCH     = 1           # 1 = spin with EQUAL wheel speeds (right motor ~25% weaker: equal PWM shifted the axle left on every turn)
-HW_SPIN_TRIM_MAX  = 8.0         # PWM: most the learned spin trim may add/take on the right wheel (v54: 20 let it over-drive the right)
-HW_TURN_PWM2      = 46          # spin PWM for the 2nd/3rd (correction) tries: slower = less overshoot, less axle shift
-HW_PIVOT_LEARN    = 1           # 1 = learn how far forward of centre spins end; capped at 6 mm (v56 reached 10)
+HW_SPIN_TRIM_MAX  = 20.0        # PWM: limit of the learned spin trim, as v53 (v55 tried 8)
+HW_TURN_PWM2      = 52          # spin PWM for correction tries, as v53 (v55 tried 46)
+HW_PIVOT_LEARN    = 0           # 0 = off (not in v53; inconclusive on the real mouse)
 HW_PSI_TURN       = 0.105       # rad (~6 deg): max recentring steer for the first 150 mm after a turn (off tested worse)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
 HW_FRONT_SNAP     = 30.0        # mm: front fix only if within this of a wall line
 HW_TOF_SIGMA      = 20.0        # mm side ToF noise (tof_check: spread ~+-20 standing still)
-HW_V_EXPLORE      = 150.0       # mm/s explore, continuous (v53: 120 stopping on every cell; 200 crashed more in emulation)
-HW_V_RETURN       = 160.0       # mm/s (as v53; 180+ crashed more often in emulation)
-HW_V_SPRINT       = 200.0       # mm/s sprint (as v53; 240+ crashed 3x more often in emulation)
+HW_V_EXPLORE      = 100.0       # mm/s explore: slow for rigour (v53: 120)
+HW_V_RETURN       = 120.0       # mm/s return: slow for rigour (v53: 160)
+HW_V_SPRINT       = 200.0       # mm/s sprint = 2x explore. 240-300 doubled sprint crashes in emulation; raise +20 at a time only once runs are clean
 HW_V_TURN         = 170.0       # mm/s through smooth 90 deg arcs
 HW_ACCEL          = 400.0       # mm/s^2 (as v53): stops from 150 mm/s in 28 mm, inside the 60 mm a turn is decided ahead
 HW_W_TURN         = 180.0       # deg/s in-place turn ceiling
@@ -1173,7 +1173,7 @@ class Mouse:
             self.sense()
             e = fabs(self.vlw) - fabs(self.vrw)         # > 0: left faster
             if learn and fabs(self.vlw) > 60.0:
-                self.spin_trim = clamp(self.spin_trim + 0.005 * e, -HW_SPIN_TRIM_MAX, HW_SPIN_TRIM_MAX)
+                self.spin_trim = clamp(self.spin_trim + 0.01 * e, -HW_SPIN_TRIM_MAX, HW_SPIN_TRIM_MAX)    # learning rate as v53
             return
         q = int(p) if sg * SIDE > 0 else -int(p)
         uct_mouse.set_motors(-q, q)
