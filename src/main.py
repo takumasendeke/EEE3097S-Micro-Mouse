@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v58 24-Oct 10:00"
+BUILD = "v59 24-Oct 12:00"
 
 try:
     import math
@@ -78,15 +78,18 @@ HW_GYRO_TRIM      = 0.0         # deg/s added to gyro bias. Drifts RIGHT -> make
 HW_TEST_STRAIGHT  = 0           # >0: just drive this many cells straight and stop (calibration)
 HW_TEST_TURN      = 0           # >0: in the start cell do this many 90 deg turns left, then right, print each
 HW_CALIBRATE      = 0           # 1 = calibration run, prints the values to paste below; 2 = also side-sensor offset
-HW_RIGHT_SCALE    = 1.00        # STRAIGHT DRIVING: right wheel power x this. Leans/ends LEFT -> 0.97, 0.95 ... ; leans RIGHT -> 1.03
-HW_KPSI           = 8.0         # how hard it steers back onto its heading (1/s). Weaves/over-corrects -> 6, then 5; sluggish -> 10
+
+HW_RIGHT_SCALE    = .95        # STRAIGHT DRIVING: right wheel power x this. Leans/ends LEFT -> 0.97, 0.95 ... ; leans RIGHT -> 1.03
+HW_KPSI           = 6.0         # how hard it steers back onto its heading (1/s). Weaves/over-corrects -> 6, then 5; sluggish -> 10
 HW_VMAX_R         = 424.0       # RIGHT wheel, as measured by diag.py (412 gave the right wheel extra drive: v54 drifted left)
+
 HW_TURN_LATFIX    = 1           # 1 = after every turn, set the sideways position from still side readings before driving
 HW_PSI_MAX        = 0.07        # rad (~4 deg): max angle it steers to recentre (sim 0.14 ~8 deg = the bends/drift)
 HW_KLAT           = 0.010       # rad heading per mm off-centre (0.007 tested worse)
-HW_SIDE_OFFSET    = 0.0         # mm: + moves the centre line RIGHT by half. Fix a lean with HW_RIGHT_SCALE first
+HW_SIDE_OFFSET    = 8.0         # mm: MOVE IT RIGHT ON AVERAGE: + shifts the centre line RIGHT by half this (8 = 4 mm). More room left -> 12, 16
 
 HW_STOP_EACH_CELL = 0           # 0 = continuous: walls sensed on the move, stops only to turn (1 = v53: stop on every cell)
+HW_SIDE_GUARD_L   = 45.0        # mm: LEFT side reflex starts this close (steers right sooner). Still clips left -> 50
 HW_SIDE_GUARD     = 35.0        # mm side reflex (25 let it drift onto the prongs - back to 35)
 HW_FRONT_STOP     = 30.0        # mm: front reflex - blocked below this + speed * HW_FRONT_REACT (centre reads 37 now)
 HW_FRONT_REACT    = 0.15        # s: ToF latency + braking time, so faster = stop earlier
@@ -2369,10 +2372,16 @@ class Mouse:
         # the mouse turns away from it (median of the last three valid
         # readings, so one stray short echo does not kick the heading)
         if SIDE_GUARD > 0.0:
-            if self.aR < 6 and self.mR < SIDE_GUARD:
-                w += clamp(5.0 * (SIDE_GUARD - self.mR), 0.0, 120.0)
-            if self.aL < 6 and self.mL < SIDE_GUARD:
-                w -= clamp(5.0 * (SIDE_GUARD - self.mL), 0.0, 120.0)
+            gr = SIDE_GUARD
+            if POS_MODEL and SIDE < 0:
+                gr = HW_SIDE_GUARD_L
+            if self.aR < 6 and self.mR < gr:
+                w += clamp(5.0 * (gr - self.mR), 0.0, 120.0)
+            gl = SIDE_GUARD
+            if POS_MODEL and SIDE > 0:
+                gl = HW_SIDE_GUARD_L        # physical left (mirrored frame: map R is the left)
+            if self.aL < 6 and self.mL < gl:
+                w -= clamp(5.0 * (gl - self.mL), 0.0, 120.0)
         self.wlast = w
         self.step(vc, w)
         self.kf(latc)
