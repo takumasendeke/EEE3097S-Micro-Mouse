@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v60 STABLE 24-Oct"
+BUILD = "v61 STABLE 25-Oct"
 
 try:
     import math
@@ -1437,7 +1437,9 @@ class Mouse:
     def zupt_add(self, gs, gn):
         if ZUPT_STOP and gn >= 12:
             e = gs / gn
-            if fabs(e) < 2.0:
+            # board: wheels dead still for 12+ samples, so the mouse is not
+            # turning - a start zero off by more than 2 deg/s gets fixed too
+            if fabs(e) < (6.0 if POS_MODEL else 2.0):
                 self.bias += 0.5 * e * GYRO_GAIN
 
     # Median of the valid front readings standing still (for stop_fix).
@@ -1632,13 +1634,45 @@ class Mouse:
         while n < 20:
             uct_mouse.delay_ms(DT_MS)
             n += 1
-        tot = 0.0
-        n = 0
-        while n < CAL_SAMPLES:
-            uct_mouse.delay_ms(DT_MS)
-            tot += uct_mouse.get_gyro()
-            n += 1
-        self.bias = tot / CAL_SAMPLES + GYRO_TRIM * GYRO_GAIN
+        if IS_SIM:
+            tot = 0.0
+            n = 0
+            while n < CAL_SAMPLES:
+                uct_mouse.delay_ms(DT_MS)
+                tot += uct_mouse.get_gyro()
+                n += 1
+            self.bias = tot / CAL_SAMPLES + GYRO_TRIM * GYRO_GAIN
+        else:
+            # board: only a truly still mouse gives the gyro's zero. A hand on
+            # it / rocking after SW1 gave a wrong zero, and the mouse then
+            # curved into a wall within a few cells (ends the run on contact)
+            best = None
+            k = 0
+            while k < 4:
+                e0 = uct_mouse.get_encoders()
+                tot = 0.0
+                sq = 0.0
+                n = 0
+                while n < CAL_SAMPLES:
+                    uct_mouse.delay_ms(DT_MS)
+                    g = uct_mouse.get_gyro()
+                    tot += g
+                    sq += g * g
+                    n += 1
+                e1 = uct_mouse.get_encoders()
+                mean = tot / CAL_SAMPLES
+                var = sq / CAL_SAMPLES - mean * mean
+                sd = _sqrt(var) if var > 0.0 else 0.0
+                moved = abs(e1[0] - e0[0]) > 2 or abs(e1[1] - e0[1]) > 2
+                if best is None or sd < best[1]:
+                    best = (mean, sd)
+                if not moved and sd < 1.0:     # still mouse ~0.03 deg/s; a hand / rocking is several
+                    break
+                log("gyro cal: moving - retrying (spread", int(100 * sd) / 100.0, "wheels moved", 1 if moved else 0, ")")
+                uct_mouse.delay_ms(500)
+                k += 1
+            self.bias = best[0] + GYRO_TRIM * GYRO_GAIN
+            log("gyro zero", int(100 * best[0]) / 100.0, "deg/s spread", int(100 * best[1]) / 100.0)
         try:
             ax = ay = az = 0.0
             n = 0
@@ -2888,9 +2922,11 @@ def wait_for_start():
     try:
         while uct_mouse.get_button() == 0:
             uct_mouse.delay_ms(50)
+        while uct_mouse.get_button() != 0:     # wait for the finger to come off SW1
+            uct_mouse.delay_ms(20)
     except Exception:
         return
-    uct_mouse.delay_ms(1000)
+    uct_mouse.delay_ms(1500)                    # hands clear before the gyro is calibrated
 
 
 # =========================================================================
