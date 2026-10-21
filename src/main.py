@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v51 22-Oct 09:00"
+BUILD = "v52 22-Oct 14:00"
 
 try:
     import math
@@ -133,8 +133,12 @@ HW_POS_MODEL      = 1           # 1 = keep an along/sideways uncertainty; every 
 HW_EDGE_FIX       = 1           # 1 = a side wall ending/starting (cell boundary) fixes the along position on the move
 HW_EDGE_OFF       = 18.0        # mm: start value - a wall END is seen this far past the boundary, a START this far before (learned: "p" in edge lines; v46 run: 17-19)
 HW_SIDE_NOM       = 52.0        # mm side reading with the axle centred (measured L 50 / R 53); used until a cell with walls on both sides re-measures it
+HW_NOM_L          = 0.0         # mm LEFT reading at the TRUE centre, from workspace/centre_test.py (0 = measure at start, re-learn)
+HW_NOM_R          = 0.0         # mm RIGHT reading at the TRUE centre (set both, or neither)
 HW_TOF_LAG        = 0.02        # s: age of a ToF reading (the mouse has moved speed x lag since)
 HW_ALIGN_TOL      = 4.0         # mm: before a turn, move to the cell centre if further off than this
+HW_ON_CONTACT     = 1           # 1 = any contact (BUMP/STALL/PINNED/SLIP/turn blocked) stops the run; 0 = log it, drive on
+HW_POST_BLANK     = 30.0        # mm: ignore side readings while the side sensor is this close to a cell boundary (posts, wall ends)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
@@ -247,6 +251,7 @@ SIDE_OFFSET = 0.0
 FRONT_CENTER = 35.0             # sim: 100 - FRONT_OFF
 FRONT_NEAR = 2000.0
 POS_MODEL = 0                   # board: weighted along/sideways fixes (sim keeps its own filter)
+NOM_FIXED = 0                   # board: 1 = HW_NOM_L/R measured, never re-learned
 EDGE_FIX = 0                    # board: side-wall edge fixes
 TILT_LIM = 0.0
 SIDE_GUARD = 0.0                # mm: steer away below this (board only; sim never needs it)
@@ -350,6 +355,12 @@ def save_due():
         save_log()
 
 
+# Raised on the board when the mouse touches something (HW_ON_CONTACT = 1):
+# in the demo any contact fails the run, so it stops instead of backing up.
+class ContactStop(Exception):
+    pass
+
+
 # 1 in co-simulation, 0 on the board - CPython has os.environ, MicroPython does not.
 def on_simulator():
     try:
@@ -371,7 +382,7 @@ def select_profile():
     global DEBUG, FRONT_STOP, FRONT_CENTER, TILT_LIM, KF_HEADING, STOP_EACH, WALL_K, GYRO_TRIM, TEST_STRAIGHT, SIDE_AUTO, SIDE_GUARD, TPMM_AUTO, FRONT_SNAP, GYRO_AUTO, ROOM_MAX_DOORS, VMAX_L, VMAX_R, SYSID
     global FRONT_REACT, FRONT_CHECK, TURN_LEAD, TURN_KLIN, TURN_WMIN, ALIGN_MOVE, ARCS, KEEP_IW, STOP_FIX
     global PIVOT_BACK, REVERSE_OUT, REV_HOME, SPIN_SHIFT, V_REVERSE, SENSE_STEPS, SKIP_SEEN, WALL_STOP, ZUPT_STOP
-    global KLAT, PSI_MAX, WHEEL_PI, STOP_EXTRA, FRONT_NEAR, POS_MODEL, EDGE_FIX, SIDE_NOM, NOM_L, NOM_R
+    global KLAT, PSI_MAX, WHEEL_PI, STOP_EXTRA, FRONT_NEAR, POS_MODEL, EDGE_FIX, SIDE_NOM, NOM_L, NOM_R, NOM_FIXED
     global TURN_BB, TURN_PWM, TURN_COAST, KICK_L, KICK_R, LOOP_FIXED, SIDE_OFFSET, STOP_CREEP, STRAIGHTEN, EXPLORE_ALL, BRAKE_HOLD
     IS_SIM = on_simulator()
     if IS_SIM == 1:
@@ -444,6 +455,13 @@ def select_profile():
     SIDE_NOM = HW_SIDE_NOM
     NOM_L = HW_SIDE_NOM + 0.5 * HW_SIDE_OFFSET * SIDE
     NOM_R = HW_SIDE_NOM - 0.5 * HW_SIDE_OFFSET * SIDE
+    if HW_NOM_L > 0.0 and HW_NOM_R > 0.0:
+        # measured at the true centre (centre_test.py): use as they are, a
+        # start-of-run calibration would absorb an off-centre placement
+        NOM_FIXED = 1
+        SIDE_NOM = 0.5 * (HW_NOM_L + HW_NOM_R)
+        NOM_L = HW_NOM_L if SIDE > 0 else HW_NOM_R      # map frame (SIDE < 0: L/R swapped)
+        NOM_R = HW_NOM_R if SIDE > 0 else HW_NOM_L
     SIDE_WALL = HW_SIDE_WALL
     SIDE_GUARD = HW_SIDE_GUARD
     FRONT_STOP = HW_FRONT_STOP
@@ -847,7 +865,6 @@ class Mouse:
         self.pin = 0            # steps driven with the heading stuck far off (corner caught on a post)
         self.slip = 0           # steps the wheels and the gyro disagreed on the turn rate
         self.hits = {}          # contacts per map edge (4 * cell + side)
-        self.careful = 0        # 1 = the next drive goes slowly (retry after a contact)
 
     # ---- sensing --------------------------------------------------------
     def now(self):
@@ -1190,6 +1207,8 @@ class Mouse:
                     break               # the coast from here reaches the target
                 if n > 15 and fabs(self.th - th0) < 2.0 and p >= 95:
                     log("turn blocked - giving up (wheels stuck or touching)")
+                    if POS_MODEL:
+                        self.contact()
                     tries = 3
                     break
                 if n > 15 and fabs(self.th - th0) < 2.0 and p < 95:
@@ -1244,6 +1263,17 @@ class Mouse:
         else:
             self.tilt_n = 0
         return 1 if self.tilt_n >= 3 else 0
+
+    # Board: something was touched. In the demo that already fails the run,
+    # so stop dead and end it (HW_ON_CONTACT = 1) rather than backing up and
+    # carrying on with a doubtful position; HW_ON_CONTACT = 0 just logs it.
+    def contact(self):
+        self.bump = 0
+        uct_mouse.set_motors(0, 0)
+        if HW_ON_CONTACT:
+            log("CONTACT - run stopped (any contact fails the demo)")
+            raise ContactStop()
+        log("CONTACT - ignored, driving on")
 
     # Climbed / bumped: stop, reverse gently off the obstacle, stop.
     def back_off(self):
@@ -1905,10 +1935,17 @@ class Mouse:
         p22 = self.p22 + 4e-8 + 2e-7 * fabs(ds)
         zs = 0.0
         nz = 0
-        if self.dL < NOM_L + 35.0 and self.dL < SIDE_WALL:
+        ok = 1
+        if POS_MODEL:
+            # board: level with a cell boundary the side sensor sees the post
+            # or prong (~10 mm closer) or a wall end (half the beam on the
+            # wall): those readings push the estimate the wrong way
+            a = self.along(d) + SIDE_X
+            ok = 1 if fabs(a - CELL * float(round(a / CELL))) >= HW_POST_BLANK else 0
+        if ok and self.dL < NOM_L + 35.0 and self.dL < SIDE_WALL:
             zs += NOM_L - self.dL
             nz += 1
-        if self.dR < NOM_R + 35.0 and self.dR < SIDE_WALL:
+        if ok and self.dR < NOM_R + 35.0 and self.dR < SIDE_WALL:
             zs += self.dR - NOM_R
             nz += 1
         if nz > 0:
@@ -2149,10 +2186,10 @@ class Mouse:
                 # retried a third time, slipped and lost its position)
                 log("hit", n, "times at", x, y, "side", d, "- closed, going round")
             elif (sv.known[i] & b) and not (sv.wall[i] & b):
-                log("hit at a known opening - map kept, one slow retry")
+                log("front guard at a known opening - map kept")
                 return
             elif not front and not (self.aC < 6 and self.mC < FRONT_NEAR + 30.0):
-                log("side hit - map kept, one slow retry")
+                log("side hit - map kept")
                 return
         sv.set_wall(x, y, d, 1)
 
@@ -2242,6 +2279,21 @@ class Mouse:
 
     # ---- in-place turn by a heading change (deg, map frame) --------------
     def turn_by(self, delta):
+        if POS_MODEL and fabs(delta) > 135.0:
+            # board, 180s and the pirouette: the axle stays put. Their odometry
+            # creep from unequal wheel speeds is not real: after every 180 in
+            # the v49 and v51 logs the estimate sat 7-10 mm left of what the
+            # side walls showed, and the drive afterwards steered right to
+            # "fix" it. (90s showed no clear bias, so they keep the odometry.)
+            x = self.X
+            y = self.Y
+            self.turn_core(delta)
+            self.X = x
+            self.Y = y
+            return
+        self.turn_core(delta)
+
+    def turn_core(self, delta):
         if TURN_BB:
             self.turn_bb(delta)
             return
@@ -2560,9 +2612,6 @@ class Mouse:
     # the mouse never stops. Ends stopped on a cell centre.
     def explore_drive(self, solver, vmax):
         d = self.d
-        if self.careful:
-            vmax = vmax if vmax < 60.0 else 60.0    # slow retry after a contact
-            self.careful = 0
         x0 = self.cx
         y0 = self.cy
         a0 = self.cell_along(x0, y0, d)
@@ -2655,27 +2704,14 @@ class Mouse:
                 guard += 1
             else:
                 guard = 0
+            if self.bump and POS_MODEL:
+                self.contact()              # board: stops the run (HW_ON_CONTACT = 0: drives on)
             if self.bump:
                 self.back_off()
                 goal = int((self.along(d) - a0 + CELL / 2.0) / CELL)
                 if goal < 0:
                     goal = 0
                 self.mark_hit(x0 + DX[d] * goal, y0 + DY[d] * goal, d, 0)
-                if POS_MODEL:
-                    # straighten, re-centre sideways, re-anchor along (the
-                    # wheels may have slipped), back to this cell's centre;
-                    # the next drive is slow
-                    if fabs(wrap180(self.th - 90.0 * d)) > 5.0:
-                        self.turn_to(d)
-                    self.lat_fix(20)
-                    self.cx = x0 + DX[d] * goal
-                    self.cy = y0 + DY[d] * goal
-                    self.front_median(30)
-                    self.stop_fix()
-                    c = self.cell_along(self.cx, self.cy, d) - self.along(d)
-                    if 4.0 < fabs(c) < 80.0:
-                        self.move_to(d, self.along(d) + c)
-                    self.careful = 1
                 break
             if self.front_block():
                 if rem > 70.0:
@@ -2727,6 +2763,8 @@ class Mouse:
                     break
             elif rem <= self.v * (TAU * 0.5 + (0.025 if BRAKE_HOLD else 0.0)) + 1.0:
                 break
+            if self.bump and POS_MODEL:
+                self.contact()
             if 0 < self.dC < 15 or self.bump or self.front_block():
                 hit = self.bump
                 if self.bump:
@@ -2979,7 +3017,9 @@ class Mouse:
         self.side_medians(list(sl), list(sr))
         if not calib:
             self.zupt_add(gs, gn)
-        if calib and wl and wr:
+        if NOM_FIXED:
+            pass                        # measured constants: never re-learned
+        elif calib and wl and wr:
             # each sensor's own centred reading: VL53L0X units differ by 10-20
             # mm, and a shared value makes one-wall centring pull to one side
             # median, so stray short echoes and noise do not bias it
@@ -3287,6 +3327,8 @@ def mission():
     # the log lines to runlog.txt on the board afterwards
     try:
         _mission()
+    except ContactStop:
+        pass
     finally:
         try:
             uct_mouse.set_motors(0, 0)
