@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v67 SLOW 28-Oct"
+BUILD = "v68 SLOW 28-Oct"
 
 try:
     import math
@@ -56,7 +56,7 @@ except ImportError:
 # ---------------- hardware profile (this mouse) --------------------------
 HW_MOTOR_POL_L    = 1             # flipped for the Oct-2026 MicroPython firmware
 HW_MOTOR_POL_R    = 1
-HW_ENC_POL_L      = -1
+HW_ENC_POL_L      = 1           # clean MicroPython (diag66): left counts + forwards. The first drive still checks it
 HW_ENC_POL_R      = 1
 HW_ENC_FIX        = 1           # v65: undo wrong-way encoder counts with the gyro (v64: left encoder counted one way only)
 HW_LEFT_DEADBAND  = 20.0        # diag.py sweep 20 Oct: rolling dead-band (61 over-drove every command by ~40 PWM)
@@ -939,10 +939,9 @@ class Mouse:
                         f = 1
                     elif e2 < 0.65 * e0 and tr * self.pr_last < 0 and tl * self.pl_last >= 0:
                         f = 2
-                    elif e1 < 0.65 * e0 and self.efl > self.efr + 3:
-                        f = 1
-                    elif e2 < 0.65 * e0 and self.efr > self.efl + 3:
-                        f = 2
+                    # otherwise leave both: the real gyro lags the encoders at
+                    # spin starts, and "the wheel that was wrong before" then
+                    # flipped a HEALTHY left encoder 177 times in the v67 run
                 if f == 1:
                     tl = -tl
                     self.efl += 1
