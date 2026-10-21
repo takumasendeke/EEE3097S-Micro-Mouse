@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v62 STABLE 25-Oct"
+BUILD = "v63b STABLE 26-Oct"
 
 try:
     import math
@@ -82,7 +82,7 @@ HW_TURN_LATFIX    = 1           # 1 = after every turn, set the sideways positio
 HW_PSI_MAX        = 0.07        # rad (~4 deg): max angle it steers to recentre (sim 0.14 ~8 deg = the bends/drift)
 HW_KLAT           = 0.010       # rad heading per mm off-centre (0.007 tested worse)
 
-HW_SIDE_OFFSET    = 0.0         # mm: + shifts the centre line RIGHT by half (v53: 0; 6-8 overshot)
+HW_SIDE_OFFSET    = -4.0        # mm: + shifts the centre line RIGHT by half. v62 left too much room on the left: -4 = 2 mm left. Each 2 = 1 mm
 
 HW_STOP_EACH_CELL = 1           # 1 = STABLE: stop on every cell centre and sense walls standing still (v53 finished mazes this way)
 
@@ -874,6 +874,8 @@ class Mouse:
         self.pin = 0            # steps driven with the heading stuck far off (corner caught on a post)
         self.slip = 0           # steps the wheels and the gyro disagreed on the turn rate
         self.spin_trim = 0.0    # PWM added to the right wheel in spins (learned: equal wheel speeds)
+        self.enc_chk = 0        # 1 = check both encoders count on the first drive
+        self.ec0 = None
         self.pivot_off = 0.0    # mm: line up this much short of the centre before a turn at a wall (learned)
         self.front_turn = 0     # 1 = the last line-up was on a wall close ahead
         self.turn_side = 0      # last 90: +1 left turn (old front wall now on the right), -1 right turn
@@ -1700,46 +1702,39 @@ class Mouse:
 
 
 
-    # Board pre-flight: nudge both wheels forward ~1 cm and check that each
-    # encoder counts forward. v61 drove off with the LEFT encoder reading ~0
-    # ("SLIP - wheels 178 gyro -42"): the left wheel ran away, the mouse
-    # curved right and the run ended. Returns the distance moved (mm).
-    def encoder_check(self):
+    # Board: on the first drive, once one wheel has moved ~20 mm, check that
+    # the other encoder counted too (v61: the LEFT encoder read ~0, the left
+    # wheel ran away, the mouse curved right). No separate start nudge (v62's
+    # puzzled you). Dead -> stop with a clear message; backwards -> flip.
+    def first_drive_check(self):
         global ENC_POL_L, ENC_POL_R
-        e0 = uct_mouse.get_encoders()
-        n = 0
-        while n < 80:
-            self.step(80.0, 0.0)        # speed-controlled: equal wheels, gyro tracks any turn
-            e1 = uct_mouse.get_encoders()
-            if abs(e1[0] - e0[0]) > 30 or abs(e1[1] - e0[1]) > 30:
-                break                   # one wheel has clearly moved (~5 mm): judge both
-            n += 1
-        self.settle()
-        e1 = uct_mouse.get_encoders()
-        dl = (e1[0] - e0[0]) * ENC_POL_L
-        dr = (e1[1] - e0[1]) * ENC_POL_R
-        log("encoder check L", dl, "R", dr, "ticks (both should be positive, roughly equal)")
-        if abs(dl) < 5 and abs(dr) < 5:
-            log("NO ENCODER COUNTS - is the battery switched on and charged?")
-            raise RuntimeError("NO ENC/BATT")
-        if abs(dl) < 5:
+        if self.ec0 is None:
+            self.ec0 = (self.el, self.er)
+            return
+        dl = self.el - self.ec0[0]
+        dr = self.er - self.ec0[1]
+        if abs(dl) <= 120 and abs(dr) <= 120:
+            return                      # judge once one wheel has done ~20 mm (wheels start from rest unevenly)
+        self.enc_chk = 0
+        log("encoder check L", int(dl), "R", int(dr), "ticks")
+        if abs(dl) < 10:
+            uct_mouse.set_motors(0, 0)
             log("LEFT ENCODER NOT COUNTING - reseat its cable, charge the battery")
             raise RuntimeError("ENC L DEAD")
-        if abs(dr) < 5:
+        if abs(dr) < 10:
+            uct_mouse.set_motors(0, 0)
             log("RIGHT ENCODER NOT COUNTING - reseat its cable, charge the battery")
             raise RuntimeError("ENC R DEAD")
-        if dl < 0 and dr < 0:
-            log("BOTH ENCODERS COUNT BACKWARDS - motor or encoder polarity changed")
-            raise RuntimeError("ENC BACKWARD")
-        if dl < 0:
+        if dl < 0 < dr:
             ENC_POL_L = -ENC_POL_L
-            dl = -dl
+            self.el = -self.el
+            self.vlw = -self.vlw
             log("LEFT encoder counted backwards - direction flipped for this run")
-        if dr < 0:
+        elif dr < 0 < dl:
             ENC_POL_R = -ENC_POL_R
-            dr = -dr
+            self.er = -self.er
+            self.vrw = -self.vrw
             log("RIGHT encoder counted backwards - direction flipped for this run")
-        return 0.5 * (dl + dr) / TPMM
 
     # Start-up system identification (simulator profile): spin on the spot
     # at two PWM levels. Each wheel's steady tick rate is linear in PWM above
@@ -2111,7 +2106,7 @@ class Mouse:
         d = self.d
         bnd = CELL * float(round(ae / CELL))
         e = bnd + (self.ep if old == 1 else -self.ep) - ae
-        if fabs(e) > 35.0:
+        if fabs(e) > 25.0:             # v62: a -30 edge moved it 24 mm right before a contact
             return
         sd = (d + 1) & 3 if s == 0 else (d + 3) & 3
         bit = 1 << sd
@@ -2128,7 +2123,7 @@ class Mouse:
                 return
         else:
             prov = 1
-        c = self.abs_fix(e, 9.0)        # v47 log: edge positions scatter ~10 mm
+        c = self.abs_fix(e, 12.0)       # edges scatter 10-20 mm (v62 log): count for less
         if prov:
             if len(self.epend) < 4:
                 self.epend.append((ca, bit, want, d, c, ae - bnd))
@@ -2149,7 +2144,7 @@ class Mouse:
             self.exo = x if self.eno == 0 else self.exo + 0.25 * (x - self.exo)
             self.eno += 1
         if self.enw >= 2 and self.eno >= 2:
-            self.ep = clamp(0.5 * (self.exw - self.exo), 0.0, 30.0)
+            self.ep = clamp(0.5 * (self.exw - self.exo), 12.0, 22.0)   # v62 drifted to 24
 
     # After a new cell's walls are recorded: undo edge fixes it contradicts.
     def edge_confirm(self):
@@ -2405,6 +2400,8 @@ class Mouse:
     # offset -> heading demand -> heading loop -> gyro rate loop, then the
     # Kalman update from the side walls and the front-wall distance fix.
     def track(self, d, latc, vc):
+        if self.enc_chk:
+            self.first_drive_check()
         lat = self.lateral(d) - latc
         psi = wrap180(self.th - 90.0 * d) * D2R
         if POS_MODEL:
@@ -3084,6 +3081,10 @@ def mission():
     except ContactStop:
         pass
     except Exception as e:
+        try:
+            log("battery at the end", int(100 * uct_mouse.get_vbatt()) / 100.0, "V")
+        except Exception:
+            pass
         # board: an error used to leave the mouse "frozen" with no clue why
         # (untethered, nobody sees the traceback): show it and log it
         try:
@@ -3160,8 +3161,13 @@ def _mission():
         except Exception:
             pass
     m.calibrate()
-    if POS_MODEL and not IS_SIM:
-        m.encoder_check()               # ~1 cm forward; stops here with a clear message if an encoder is dead
+    if not IS_SIM:
+        try:
+            vb = uct_mouse.get_vbatt()
+            log("battery", int(100 * vb) / 100.0, "V", "- LOW: charge before testing" if vb < 3.7 else "")
+        except Exception:
+            pass
+    m.enc_chk = 1 if (POS_MODEL and not IS_SIM) else 0     # encoders checked on the first drive (no start nudge)
     if SYSID:
         m.sysid()
     log("maze", rows, "x", cols, "side nom", SIDE_NOM, "start ToF L/C/R", m.dL, m.dC, m.dR,
