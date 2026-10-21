@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v50 21-Oct 21:00"
+BUILD = "v51 22-Oct 09:00"
 
 try:
     import math
@@ -846,6 +846,8 @@ class Mouse:
         self.nom_log = 0.0
         self.pin = 0            # steps driven with the heading stuck far off (corner caught on a post)
         self.slip = 0           # steps the wheels and the gyro disagreed on the turn rate
+        self.hits = {}          # contacts per map edge (4 * cell + side)
+        self.careful = 0        # 1 = the next drive goes slowly (retry after a contact)
 
     # ---- sensing --------------------------------------------------------
     def now(self):
@@ -1248,9 +1250,12 @@ class Mouse:
         log("BUMP - backing off")
         self.bump = 0
         self.tilt_n = 0
+        if POS_MODEL:
+            self.sa0 = 40.0             # wheels may have slipped: along position unknown
+            self.odo = 0.0
         n = 0
-        while n < 35:
-            self.step(-60.0, 0.0)
+        while n < (60 if POS_MODEL else 35):
+            self.step(-70.0 if POS_MODEL else -60.0, 0.0)     # board: ~40 mm back
             n += 1
         self.settle()
         self.vc = 0.0
@@ -1366,14 +1371,24 @@ class Mouse:
         self.move_to(d, self.along(d) + clamp(self.fmed - FRONT_CENTER, 0.0, 75.0))
         self.front_median(30)
         f = self.fmed
-        if f < FRONT_NEAR:
-            b = self.along(d) + FRONT_OFF + f       # the wall line, in the estimate
-            self.sa0 = 40.0                         # the wall decides, not the old estimate
-            self.odo = 0.0
-            self.abs_fix(CELL * float(round(b / CELL)) - b, self.front_sig(len(self.fvals)))
-            self.cx = int(self.X / CELL)
-            self.cy = int(self.Y / CELL)
-            log("re-centred in", self.cx, self.cy, "front", f)
+        if fabs(f - FRONT_CENTER) > 25.0:
+            # it did not get there (blocked, or not a wall across): leave the
+            # estimate alone (v50 snapped anyway and jumped two cells)
+            log("re-centre failed: front still", f)
+            return
+        b = self.along(d) + FRONT_OFF + f           # the wall line, in the estimate
+        e = CELL * float(round(b / CELL)) - b
+        nx = int((self.X + DX[d] * e) / CELL)
+        ny = int((self.Y + DY[d] * e) / CELL)
+        if abs(nx - self.cx) + abs(ny - self.cy) > 1:
+            log("re-centre rejected: would jump to", nx, ny)
+            return
+        self.sa0 = 40.0                             # the wall decides, not the old estimate
+        self.odo = 0.0
+        self.abs_fix(e, self.front_sig(len(self.fvals)))
+        self.cx = int(self.X / CELL)
+        self.cy = int(self.Y / CELL)
+        log("re-centred in", self.cx, self.cy, "front", f)
 
     # Board, before every spin: put the axle on the cell centre along the
     # current axis. Spinning, the front corners sweep ~86 mm round the axle
@@ -1407,6 +1422,8 @@ class Mouse:
             e = c + FRONT_CENTER - f - self.along(d)
             if fabs(e) < 60.0:
                 fx = self.abs_fix(e, self.front_sig(len(vals)))
+        elif f < 8190:
+            fx = self.far_fix(f)
         mv = c - self.along(d)
         if fabs(mv) > 60.0:
             log("align skipped, move", int(mv))     # pose estimate is off: do not drive blind
@@ -1580,7 +1597,7 @@ class Mouse:
         if POS_MODEL:
             # only this cell's own front wall (longer readings read short)
             if f >= FRONT_NEAR:
-                return 0
+                return self.far_fix(f)
             d = self.d
             e = self.cell_along(self.cx, self.cy, d) + FRONT_CENTER - f - self.along(d)
             if fabs(e) > 60.0:
@@ -1998,6 +2015,23 @@ class Mouse:
         self.eca[0] += c
         self.eca[1] += c
 
+    # Board, position lost (sa >= 30: after a contact or a slip): a mapped
+    # wall straight ahead beyond FRONT_NEAR still gives a coarse along fix.
+    # Those readings are ~10% short (the beam catches the floor), so this is
+    # only used when the estimate is worse than that.
+    def far_fix(self, f):
+        if self.sa() < 30.0 or f < FRONT_NEAR or f > 400:
+            return 0
+        bw = self.mapped_wall(self.d)
+        if bw is None:
+            return 0
+        e = bw - FRONT_OFF - (f + 0.1 * (f - FRONT_CENTER)) - self.along(self.d)
+        if fabs(e) > 150.0:
+            return 0
+        c = self.abs_fix(e, 20.0)
+        log("far fix", int(c), "front", f)
+        return int(c)
+
     # Sigma of a median of n front readings standing still (+-16 mm each).
     @staticmethod
     def front_sig(n):
@@ -2106,11 +2140,19 @@ class Mouse:
         if POS_MODEL:
             b = 1 << d
             i = y * sv.cols + x
-            if (sv.known[i] & b) and not (sv.wall[i] & b):
-                log("hit at a known opening - map kept")
+            k = 4 * i + d
+            n = self.hits.get(k, 0) + 1
+            self.hits[k] = n
+            if n >= 2:
+                # hit twice at the same place: whatever it is, the mouse
+                # cannot get through there - close it and go round (v50
+                # retried a third time, slipped and lost its position)
+                log("hit", n, "times at", x, y, "side", d, "- closed, going round")
+            elif (sv.known[i] & b) and not (sv.wall[i] & b):
+                log("hit at a known opening - map kept, one slow retry")
                 return
-            if not front and not (self.aC < 6 and self.mC < FRONT_NEAR + 30.0):
-                log("side hit - map kept")
+            elif not front and not (self.aC < 6 and self.mC < FRONT_NEAR + 30.0):
+                log("side hit - map kept, one slow retry")
                 return
         sv.set_wall(x, y, d, 1)
 
@@ -2518,6 +2560,9 @@ class Mouse:
     # the mouse never stops. Ends stopped on a cell centre.
     def explore_drive(self, solver, vmax):
         d = self.d
+        if self.careful:
+            vmax = vmax if vmax < 60.0 else 60.0    # slow retry after a contact
+            self.careful = 0
         x0 = self.cx
         y0 = self.cy
         a0 = self.cell_along(x0, y0, d)
@@ -2617,10 +2662,20 @@ class Mouse:
                     goal = 0
                 self.mark_hit(x0 + DX[d] * goal, y0 + DY[d] * goal, d, 0)
                 if POS_MODEL:
-                    # straighten and re-centre before anything else drives
+                    # straighten, re-centre sideways, re-anchor along (the
+                    # wheels may have slipped), back to this cell's centre;
+                    # the next drive is slow
                     if fabs(wrap180(self.th - 90.0 * d)) > 5.0:
                         self.turn_to(d)
                     self.lat_fix(20)
+                    self.cx = x0 + DX[d] * goal
+                    self.cy = y0 + DY[d] * goal
+                    self.front_median(30)
+                    self.stop_fix()
+                    c = self.cell_along(self.cx, self.cy, d) - self.along(d)
+                    if 4.0 < fabs(c) < 80.0:
+                        self.move_to(d, self.along(d) + c)
+                    self.careful = 1
                 break
             if self.front_block():
                 if rem > 70.0:
