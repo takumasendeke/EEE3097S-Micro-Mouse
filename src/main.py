@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v53 22-Oct 20:00"
+BUILD = "v54 23-Oct 09:00"
 
 try:
     import math
@@ -84,7 +84,7 @@ HW_PSI_MAX        = 0.07        # rad (~4 deg): max angle it steers to recentre 
 HW_KLAT           = 0.010       # rad heading per mm off-centre (0.012 + noisy sides steered it up to 8 deg)
 HW_SIDE_OFFSET    = 0.0         # mm: + moves the centre line RIGHT. v47 log: after line-ups latfix read +4.5 on BOTH walls = exactly 9/2, so 9 drove it 4.5 mm right all run (both crashes: right-side posts)
 
-HW_STOP_EACH_CELL = 1           # 1 = stop at every cell centre and sense walls standing still
+HW_STOP_EACH_CELL = 0           # 0 = continuous: walls sensed on the move, stops only to turn (1 = v53: stop on every cell)
 HW_SIDE_GUARD     = 35.0        # mm side reflex (25 let it drift onto the prongs - back to 35)
 HW_FRONT_STOP     = 30.0        # mm: front reflex - blocked below this + speed * HW_FRONT_REACT (centre reads 37 now)
 HW_FRONT_REACT    = 0.15        # s: ToF latency + braking time, so faster = stop earlier
@@ -146,11 +146,11 @@ HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measure
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
 HW_FRONT_SNAP     = 30.0        # mm: front fix only if within this of a wall line
 HW_TOF_SIGMA      = 20.0        # mm side ToF noise (tof_check: spread ~+-20 standing still)
-HW_V_EXPLORE      = 120.0       # mm/s explore (slow first, speed later)
-HW_V_RETURN       = 160.0       # mm/s
-HW_V_SPRINT       = 200.0       # mm/s sprint
+HW_V_EXPLORE      = 150.0       # mm/s explore, continuous (v53: 120 stopping on every cell; 200 crashed more in emulation)
+HW_V_RETURN       = 160.0       # mm/s (as v53; 180+ crashed more often in emulation)
+HW_V_SPRINT       = 200.0       # mm/s sprint (as v53; 240+ crashed 3x more often in emulation)
 HW_V_TURN         = 170.0       # mm/s through smooth 90 deg arcs
-HW_ACCEL          = 400.0       # mm/s^2 (diag.py value)
+HW_ACCEL          = 400.0       # mm/s^2 (as v53): stops from 150 mm/s in 28 mm, inside the 60 mm a turn is decided ahead
 HW_W_TURN         = 180.0       # deg/s in-place turn ceiling
 HW_ALPHA_TURN     = 1000.0      # deg/s^2
 HW_TURN_TOL       = 3.0         # deg: accept the spin within this (1.5 caused extra back-and-forth corrections)
@@ -2704,12 +2704,29 @@ class Mouse:
                 wr = 1 if (2 * vr > nr and vr >= 2 and 4 * vr >= tl) else 0
                 wf = 1 if (fs > fo and fs >= 2 and 4 * fs >= tl) else 0
                 self.vote = (vl, nl, vr, nr)
-                wl, wr = self.side_check(wl, wr, wf)
-                nd = record_cell(solver, x0 + DX[d] * k, y0 + DY[d] * k, d, wl, wf, wr)
-                if DEBUG:
-                    log("cell", x0 + DX[d] * k, y0 + DY[d] * k, "d", d, "ToF L/C/R", self.dL, self.dC, self.dR,
-                        "votes L", vl, "/", nl, "R", vr, "/", nr, "F", fs, "/", fs + fo, "-> wall L F R", wl, wf, wr, "next", nd,
-                        "th", int(self.th))
+                x1 = x0 + DX[d] * k
+                y1 = y0 + DY[d] * k
+                i1 = y1 * solver.cols + x1
+                if POS_MODEL and solver.inside(x1, y1) and solver.visited[i1]:
+                    # board, continuous: a cell already mapped keeps its map (a
+                    # quick vote on the move must never add a wall to it)
+                    rm = solver.check_room()
+                    nd = -2 if (rm is not None and i1 in rm) else solver.next_dir(x1, y1, d)
+                    wf = 0 if solver.is_open(i1, d, 0) else 1
+                    if DEBUG:
+                        log("pass", x1, y1, "next", nd)
+                else:
+                    wl, wr = self.side_check(wl, wr, wf)
+                    nd = record_cell(solver, x1, y1, d, wl, wf, wr)
+                    if EDGE_FIX:
+                        self.edge_confirm()
+                    if DEBUG and POS_MODEL:
+                        log("cell", x1, y1, "d", d, "walls L F R", wl, wf, wr, "votes L", vl, "/", nl, "F", fs, "/",
+                            fs + fo, "R", vr, "/", nr, "next", nd, "th", int(self.th))
+                    elif DEBUG:
+                        log("cell", x1, y1, "d", d, "ToF L/C/R", self.dL, self.dC, self.dR,
+                            "votes L", vl, "/", nl, "R", vr, "/", nr, "F", fs, "/", fs + fo, "-> wall L F R", wl, wf, wr, "next", nd,
+                            "th", int(self.th))
                 decided = 1
                 if nd == d and wf == 0:
                     goal = k + 1
@@ -2883,7 +2900,7 @@ class Mouse:
             self.align_front()
         if f0 != self.d:
             self.safe_turn(f0)
-            self.lat_fix(15)
+            self.lat_fix(30 if POS_MODEL else 15)
         self.vc = 0.0
         self.lost = 0
         x = self.cx
@@ -2909,7 +2926,7 @@ class Mouse:
                     self.cy = ey
                     self.align_front()
                     self.safe_turn(nf)
-                    self.lat_fix(15)
+                    self.lat_fix(30 if POS_MODEL else 15)
             elif ARCS and j < nmv and moves[j] != ((d + 2) & 3):
                 self.straight(d, latc, ce - CELL / 2.0, vturn, vmax)
                 if self.lost:
@@ -2926,7 +2943,7 @@ class Mouse:
                     self.cy = ey
                     self.align_front()
                     self.safe_turn(nf)
-                    self.lat_fix(15)
+                    self.lat_fix(30 if POS_MODEL else 15)
             x = ex
             y = ey
             i = j
