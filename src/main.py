@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v54 23-Oct 09:00"
+BUILD = "v55 23-Oct 14:00"
 
 try:
     import math
@@ -78,7 +78,7 @@ HW_GYRO_TRIM      = 0.0         # deg/s added to gyro bias. Drifts RIGHT -> make
 HW_TEST_STRAIGHT  = 0           # >0: just drive this many cells straight and stop (calibration)
 HW_TEST_TURN      = 0           # >0: in the start cell do this many 90 deg turns left, then right, print each
 HW_CALIBRATE      = 0           # 1 = calibration run, prints the values to paste below; 2 = also side-sensor offset
-HW_VMAX_R         = 412.0       # RIGHT wheel (diag 424; a touch lower = a little more right drive against the slight right drift)
+HW_VMAX_R         = 424.0       # RIGHT wheel, as measured by diag.py (412 gave the right wheel extra drive: v54 drifted left)
 HW_TURN_LATFIX    = 1           # 1 = after every turn, set the sideways position from still side readings before driving
 HW_PSI_MAX        = 0.07        # rad (~4 deg): max angle it steers to recentre (sim 0.14 ~8 deg = the bends/drift)
 HW_KLAT           = 0.010       # rad heading per mm off-centre (0.012 + noisy sides steered it up to 8 deg)
@@ -140,6 +140,8 @@ HW_ALIGN_TOL      = 4.0         # mm: before a turn, move to the cell centre if 
 HW_ON_CONTACT     = 1           # 1 = any contact (BUMP/STALL/PINNED/SLIP/turn blocked) stops the run; 0 = log it, drive on
 HW_POST_BLANK     = 30.0        # mm: ignore side readings while the side sensor is this close to a cell boundary (posts, wall ends)
 HW_SPIN_MATCH     = 1           # 1 = spin with EQUAL wheel speeds (right motor ~25% weaker: equal PWM shifted the axle left on every turn)
+HW_SPIN_TRIM_MAX  = 8.0         # PWM: most the learned spin trim may add/take on the right wheel (v54: 20 let it over-drive the right)
+HW_TURN_PWM2      = 46          # spin PWM for the 2nd/3rd (correction) tries: slower = less overshoot, less axle shift
 HW_PSI_TURN       = 0.105       # rad (~6 deg): max recentring steer for the first 150 mm after a turn (HW_PSI_MAX elsewhere)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
@@ -1189,7 +1191,7 @@ class Mouse:
             self.sense()
             e = fabs(self.vlw) - fabs(self.vrw)         # > 0: left faster
             if learn and fabs(self.vlw) > 60.0:
-                self.spin_trim = clamp(self.spin_trim + 0.01 * e, -20.0, 20.0)
+                self.spin_trim = clamp(self.spin_trim + 0.005 * e, -HW_SPIN_TRIM_MAX, HW_SPIN_TRIM_MAX)
             return
         q = int(p) if sg * SIDE > 0 else -int(p)
         uct_mouse.set_motors(-q, q)
@@ -1219,7 +1221,7 @@ class Mouse:
             if tries > 0 and fabs(err) < TURN_TOL:
                 break
             sg = 1.0 if err > 0.0 else -1.0
-            p = TURN_PWM
+            p = TURN_PWM if (tries == 0 or not POS_MODEL) else HW_TURN_PWM2
             th0 = self.th
             n = 0
             while n < 300:
@@ -1262,7 +1264,8 @@ class Mouse:
         err = target - self.th
         if DEBUG:
             log("turn", int(delta), "err", int(10 * err) / 10.0, "ovs", int(10 * ovs) / 10.0,
-                "ms", self.now() - t0, "tries", tries, "coast", int(1000 * self.tcoast))
+                "ms", self.now() - t0, "tries", tries, "coast", int(1000 * self.tcoast),
+                "trim", int(self.spin_trim))
         self.p22 += 0.0005
         self.p11 += 25.0
 
