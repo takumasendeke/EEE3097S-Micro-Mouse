@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v69 LANE 29-Oct"
+BUILD = "v70 LANE 29-Oct"
 
 try:
     import math
@@ -81,6 +81,8 @@ HW_KPSI           = 8.0         # heading loop (1/s), as v53 (the only settings 
 HW_VMAX_R         = 412.0       # RIGHT wheel, as v53 (completed mazes; v55 tried 424)
 HW_TURN_LATFIX    = 1           # 1 = after every turn, set the sideways position from still side readings before driving
 HW_PSI_MAX        = 0.10        # rad (~6 deg): max angle it steers to recentre. v69: 4 deg could not beat a 5-8 deg heading error (v67)
+HW_ODO_LEARN      = 1           # v70: learn the odometry scale from front-wall fixes (v68: 59 of 60 were negative = arrived short)
+HW_RETURN_STOPS   = 1           # v70: the return stops and senses on every cell, like exploration
 HW_STOP_LAT       = 1           # v69: at every new-cell stop, set the sideways position from the still side medians and correct the gyro heading from the walls
 HW_KLAT           = 0.010       # rad heading per mm off-centre (0.007 tested worse)
 
@@ -157,7 +159,7 @@ HW_FRONT_SNAP     = 30.0        # mm: front fix only if within this of a wall li
 HW_TOF_SIGMA      = 20.0        # mm side ToF noise (tof_check: spread ~+-20 standing still)
 HW_V_EXPLORE      = 75.0  # v67: slower for rigour (v66: 100, v53: 120)
 HW_V_RETURN       = 90.0  # v67: slower for rigour (v66: 120)
-HW_V_SPRINT       = 200.0       # mm/s sprint = 2x explore. 240-300 doubled sprint crashes in emulation; raise +20 at a time only once runs are clean
+HW_V_SPRINT       = 160.0       # v70: 160 (v68's only failure and its worst along errors were in the 200 mm/s sprint)
 HW_V_TURN         = 170.0       # mm/s through smooth 90 deg arcs
 HW_ACCEL          = 300.0  # v67: gentler starts/stops (v66: 400)
 HW_W_TURN         = 180.0       # deg/s in-place turn ceiling
@@ -870,6 +872,7 @@ class Mouse:
         self.fvals = []         # front readings of the last stationary look
         self.sa0 = 10.0         # along-track uncertainty (mm, 1 sigma) at the last position fix
         self.odo = 0.0          # mm driven since that fix (the uncertainty grows with it)
+        self.odf = 0.0          # mm driven since the last front-wall fix (odometry scale learning)
         self.ecls = [0, 0]      # side edge tracker (L, R): class 0 none, 1 wall, 2 open
         self.en = [0, 0]        # valid readings in a row of that class
         self.ea = [0.0, 0.0]    # along-position of the last one
@@ -961,6 +964,7 @@ class Mouse:
         ds = 0.5 * (dl + dr)
         self.ds = ds
         self.odo += ds if ds > 0.0 else -ds
+        self.odf += ds if ds > 0.0 else -ds
         self.v += 0.4 * (ds / dt - self.v)
         self.vlw += 0.35 * (dl / dt - self.vlw)     # each wheel's own speed (wheel-PI mode)
         self.vrw += 0.35 * (dr / dt - self.vrw)
@@ -1478,6 +1482,7 @@ class Mouse:
         if f < FRONT_NEAR:
             e = c + FRONT_CENTER - f - self.along(d)
             if fabs(e) < 60.0:
+                self.odo_learn(e)
                 fx = self.abs_fix(e, self.front_sig(len(vals)))
                 self.front_turn = 1
         elif f < 8190:
@@ -1490,7 +1495,7 @@ class Mouse:
             return
         if fabs(mv) > HW_ALIGN_TOL:
             self.move_to(d, self.along(d) + clamp(mv, -30.0, 30.0))
-        log("align front", f, "fix", int(fx), "move", int(mv), "sa", int(self.sa()), "piv", int(self.piv[k]) if k >= 0 else 0,
+        log("align front", f, "fix", int(fx), "move", int(mv), "sa", int(self.sa()), "piv", int(self.piv[k]) if k >= 0 else 0, "tpm", int(1000 * TPMM),
             "ms", self.now() - t0)
 
     # Gyro bias from samples taken with BOTH wheels dead still (a turn that
@@ -1619,6 +1624,23 @@ class Mouse:
     # along-track position. Without it the start-up wheel slip of every
     # cell adds up along open corridors, and the next 90 deg turn turns
     # that along error into a sideways one (into a post).
+    # v70 board: a still front-wall fix says how far the odometry was off over
+    # the distance driven since the last one. v68 logs: 59 of 60 front fixes were
+    # negative - it always arrived short, -7 mm per cell, -23 after sprint
+    # straights: the wheels count ~3-5% more than the real distance (ticks
+    # per mm, or slip on this floor). Learn that scale, within +-8%.
+    def odo_learn(self, e):
+        global TPMM
+        D = self.odf
+        self.odf = 0.0
+        if not HW_ODO_LEARN or IS_SIM or D < 150.0 or fabs(e) > 50.0:
+            return
+        # only the still reading: the corrections on the way in carry the
+        # ToF lag and made it over-learn by 5-8% in emulation
+        r = clamp(-e / D, -0.05, 0.05)          # + = the wheels over-count
+        b = HW_TICKS_PER_M / 1000.0
+        TPMM = clamp(TPMM * (1.0 + 0.4 * r), 0.94 * b, 1.06 * b)
+
     def stop_fix(self):
         f = self.fmed
         if not STOP_FIX or not self.fmed_ok or f > 500:
@@ -1631,6 +1653,7 @@ class Mouse:
             e = self.cell_along(self.cx, self.cy, d) + FRONT_CENTER - f - self.along(d)
             if fabs(e) > 60.0:
                 return 0
+            self.odo_learn(e)
             return int(self.abs_fix(e, self.front_sig(len(self.fvals))))
         return 0
 
@@ -2864,7 +2887,7 @@ class Mouse:
     # heading, then straights merged into single profiles joined by arcs.
     # Returns 1 when the path was completed, 0 when a front guard stopped it
     # (the mouse is then stopped in cell (cx, cy) and the caller replans).
-    def follow(self, moves, vmax, vturn, rev_last=0):
+    def follow(self, moves, vmax, vturn, rev_last=0, one=0):
         if not moves:
             return 1
         nmv = len(moves)
@@ -2884,6 +2907,8 @@ class Mouse:
             j = i
             while j < nmv and moves[j] == d:
                 j += 1
+                if one:
+                    break               # v70 return: one cell at a time, sensing standing still on each
             ex = x + DX[d] * (j - i)
             ey = y + DY[d] * (j - i)
             latc = self.cell_lat(x, y, d)
@@ -2903,9 +2928,14 @@ class Mouse:
                 if j < nmv:
                     self.cx = ex
                     self.cy = ey
-                    self.align_front(nf)
-                    self.safe_turn(nf)
-                    self.lat_fix(30 if POS_MODEL else 15)
+                    if one and nf == d:
+                        self.still_walls(40, 0)     # side and front medians standing still
+                        self.stop_fix()
+                        self.stop_lat()
+                    else:
+                        self.align_front(nf)
+                        self.safe_turn(nf)
+                        self.lat_fix(30 if POS_MODEL else 15)
             x = ex
             y = ey
             i = j
@@ -3326,7 +3356,7 @@ def _mission():
     while k < 4:
         moves = solver.plan(m.cx, m.cy, m.d, [0])
         log("return", moves)
-        if not moves or m.follow(moves, V_RETURN, V_TURN, 1):
+        if not moves or m.follow(moves, V_RETURN, V_TURN, 1, HW_RETURN_STOPS if not IS_SIM else 0):
             break
         k += 1                          # a front guard stopped it: replan from here
     m.align_front(0)
