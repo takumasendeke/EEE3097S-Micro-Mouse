@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v52 22-Oct 14:00"
+BUILD = "v53 22-Oct 20:00"
 
 try:
     import math
@@ -139,6 +139,8 @@ HW_TOF_LAG        = 0.02        # s: age of a ToF reading (the mouse has moved s
 HW_ALIGN_TOL      = 4.0         # mm: before a turn, move to the cell centre if further off than this
 HW_ON_CONTACT     = 1           # 1 = any contact (BUMP/STALL/PINNED/SLIP/turn blocked) stops the run; 0 = log it, drive on
 HW_POST_BLANK     = 30.0        # mm: ignore side readings while the side sensor is this close to a cell boundary (posts, wall ends)
+HW_SPIN_MATCH     = 1           # 1 = spin with EQUAL wheel speeds (right motor ~25% weaker: equal PWM shifted the axle left on every turn)
+HW_PSI_TURN       = 0.105       # rad (~6 deg): max recentring steer for the first 150 mm after a turn (HW_PSI_MAX elsewhere)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
@@ -864,6 +866,8 @@ class Mouse:
         self.nom_log = 0.0
         self.pin = 0            # steps driven with the heading stuck far off (corner caught on a post)
         self.slip = 0           # steps the wheels and the gyro disagreed on the turn rate
+        self.spin_trim = 0.0    # PWM added to the right wheel in spins (learned: equal wheel speeds)
+        self.boost_to = -1e9    # along-position until which the stronger post-turn steering applies
         self.hits = {}          # contacts per map edge (4 * cell + side)
 
     # ---- sensing --------------------------------------------------------
@@ -1166,7 +1170,27 @@ class Mouse:
             uct_mouse.delay_ms(DT_MS)
 
     # Spin on the spot at raw PWM p, direction sg (+1 = CCW in the map frame).
-    def spin_raw(self, sg, p):
+    def spin_raw(self, sg, p, learn=1):
+        if POS_MODEL and HW_SPIN_MATCH:
+            # board: equal wheel SPEEDS, not equal PWM. The right motor is
+            # ~25% weaker, so at equal PWM the left wheel ran faster and the
+            # mouse rotated about a point right of the axle: every 90 left
+            # the axle ~4 mm to the left, every U-turn ~8 mm (v49-v52 logs,
+            # and what you see). The right wheel gets the model's extra PWM
+            # plus a trim learned from the encoders, kept from spin to spin.
+            a = int(p)
+            ff = DB_R + (p - DB_L) * (VMAX_L / (100.0 - DB_L)) / (VMAX_R / (100.0 - DB_R)) - p
+            b = int(clamp(p + ff + self.spin_trim, 0.0, 100.0))
+            if sg * SIDE > 0:
+                uct_mouse.set_motors(-a, b)
+            else:
+                uct_mouse.set_motors(a, -b)
+            self.wait_period()
+            self.sense()
+            e = fabs(self.vlw) - fabs(self.vrw)         # > 0: left faster
+            if learn and fabs(self.vlw) > 60.0:
+                self.spin_trim = clamp(self.spin_trim + 0.01 * e, -20.0, 20.0)
+            return
         q = int(p) if sg * SIDE > 0 else -int(p)
         uct_mouse.set_motors(-q, q)
         self.wait_period()
@@ -1224,7 +1248,7 @@ class Mouse:
                 # (free coasting varied 58-115 ms and overshot 8-16 deg)
                 k = 0
                 while k < 4 and sg * self.rate > 0.33 * rc:
-                    self.spin_raw(-sg, TURN_PWM)
+                    self.spin_raw(-sg, TURN_PWM, 0)     # brake pulse: no trim learning
                     k += 1
             self.spin_stop()
             if rc > 60.0:
@@ -2084,11 +2108,11 @@ class Mouse:
         sa = self.sa()
         if fabs(fabs(wrap180(delta)) - 90.0) < 45.0:
             p = self.p11
-            self.p11 = (sa * sa if sa > 8.0 else 64.0) + 9.0
+            self.p11 = (sa * sa if sa > 15.0 else 225.0) + 9.0
             self.sa0 = _sqrt((p if p > 25.0 else 25.0) + 9.0)
         else:
-            if self.p11 < 64.0:
-                self.p11 = 64.0
+            if self.p11 < 225.0:
+                self.p11 = 225.0
             self.sa0 = _sqrt(sa * sa + 9.0)
         self.odo = 0.0
         self.p12 = 0.0
@@ -2414,6 +2438,7 @@ class Mouse:
             self.X -= DY[d] * dl
             self.Y += DX[d] * dl
             self.p11 = p * m2 / (p + m2)
+            self.boost_to = self.along(d) + 150.0       # get back to the centre line quickly
             log("latfix", int(z), "mm corr", int(dl), "g", int(100 * g))
             return
         if okl and okr:
@@ -2506,6 +2531,7 @@ class Mouse:
 
     def turn_to(self, nd):
         self.rB = [0.0, 1e9, 2e9]       # new axis: old wall-position readings no longer apply
+        self.boost_to = -1e9
         delta = wrap180(90.0 * nd - self.th)
         if fabs(delta) < 3.0:
             self.d = nd
@@ -2555,7 +2581,10 @@ class Mouse:
                     log("SLIP - wheels", int(ew), "gyro", int(self.rate_p), "deg/s")
             else:
                 self.slip = 0
-        pref = clamp(-KLAT * lat, -PSI_MAX, PSI_MAX)
+        pm = PSI_MAX
+        if POS_MODEL and self.along(d) < self.boost_to:
+            pm = HW_PSI_TURN            # just after a turn + latfix: steer back to centre faster
+        pref = clamp(-KLAT * lat, -pm, pm)
         w = clamp(KPSI * (pref - psi) / D2R, -120.0, 120.0)
         if WALL_K > 0.0:
             # classic wall following: lateral offset straight from side ToF
@@ -3343,10 +3372,6 @@ def _mission():
         return
     print("S4 BUILD", BUILD)
     if not on_simulator():
-        try:
-            open("runlog.txt", "w").close()     # this run's log starts empty
-        except Exception:
-            pass
         LOGBUF = ["S4 BUILD " + BUILD]
     try:
         uct_mouse.display_text(1, "S4 " + BUILD[:3])
@@ -3378,6 +3403,13 @@ def _mission():
     m = Mouse()
     m.solver = solver
     wait_for_start()
+    if LOGBUF is not None:
+        # empty the old log only now: the board runs this on every power-up,
+        # including plugging in USB to copy the log (v52 wiped it that way)
+        try:
+            open("runlog.txt", "w").close()
+        except Exception:
+            pass
     m.calibrate()
     if SYSID:
         m.sysid()
