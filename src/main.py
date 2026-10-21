@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v61 STABLE 25-Oct"
+BUILD = "v62 STABLE 25-Oct"
 
 try:
     import math
@@ -1439,7 +1439,7 @@ class Mouse:
             e = gs / gn
             # board: wheels dead still for 12+ samples, so the mouse is not
             # turning - a start zero off by more than 2 deg/s gets fixed too
-            if fabs(e) < (6.0 if POS_MODEL else 2.0):
+            if fabs(e) < 2.0:          # as v53 (the start calibration now checks the mouse is still)
                 self.bias += 0.5 * e * GYRO_GAIN
 
     # Median of the valid front readings standing still (for stop_fix).
@@ -1699,6 +1699,47 @@ class Mouse:
         self.Y = CELL / 2.0
 
 
+
+    # Board pre-flight: nudge both wheels forward ~1 cm and check that each
+    # encoder counts forward. v61 drove off with the LEFT encoder reading ~0
+    # ("SLIP - wheels 178 gyro -42"): the left wheel ran away, the mouse
+    # curved right and the run ended. Returns the distance moved (mm).
+    def encoder_check(self):
+        global ENC_POL_L, ENC_POL_R
+        e0 = uct_mouse.get_encoders()
+        n = 0
+        while n < 80:
+            self.step(80.0, 0.0)        # speed-controlled: equal wheels, gyro tracks any turn
+            e1 = uct_mouse.get_encoders()
+            if abs(e1[0] - e0[0]) > 30 or abs(e1[1] - e0[1]) > 30:
+                break                   # one wheel has clearly moved (~5 mm): judge both
+            n += 1
+        self.settle()
+        e1 = uct_mouse.get_encoders()
+        dl = (e1[0] - e0[0]) * ENC_POL_L
+        dr = (e1[1] - e0[1]) * ENC_POL_R
+        log("encoder check L", dl, "R", dr, "ticks (both should be positive, roughly equal)")
+        if abs(dl) < 5 and abs(dr) < 5:
+            log("NO ENCODER COUNTS - is the battery switched on and charged?")
+            raise RuntimeError("NO ENC/BATT")
+        if abs(dl) < 5:
+            log("LEFT ENCODER NOT COUNTING - reseat its cable, charge the battery")
+            raise RuntimeError("ENC L DEAD")
+        if abs(dr) < 5:
+            log("RIGHT ENCODER NOT COUNTING - reseat its cable, charge the battery")
+            raise RuntimeError("ENC R DEAD")
+        if dl < 0 and dr < 0:
+            log("BOTH ENCODERS COUNT BACKWARDS - motor or encoder polarity changed")
+            raise RuntimeError("ENC BACKWARD")
+        if dl < 0:
+            ENC_POL_L = -ENC_POL_L
+            dl = -dl
+            log("LEFT encoder counted backwards - direction flipped for this run")
+        if dr < 0:
+            ENC_POL_R = -ENC_POL_R
+            dr = -dr
+            log("RIGHT encoder counted backwards - direction flipped for this run")
+        return 0.5 * (dl + dr) / TPMM
 
     # Start-up system identification (simulator profile): spin on the spot
     # at two PWM levels. Each wheel's steady tick rate is linear in PWM above
@@ -2392,7 +2433,12 @@ class Mouse:
                     self.bump = 1
                     self.sa0 = 40.0
                     self.odo = 0.0
-                    log("SLIP - wheels", int(ew), "gyro", int(self.rate_p), "deg/s")
+                    log("SLIP - wheels", int(ew), "gyro", int(self.rate_p), "deg/s  L", int(self.vlw), "R",
+                        int(self.vrw), "mm/s")
+                    if fabs(self.vlw) < 15.0 and fabs(self.vrw) > 80.0:
+                        log("LEFT ENCODER stopped counting while driving (cable / battery?)")
+                    elif fabs(self.vrw) < 15.0 and fabs(self.vlw) > 80.0:
+                        log("RIGHT ENCODER stopped counting while driving (cable / battery?)")
             else:
                 self.slip = 0
         pm = PSI_MAX
@@ -3049,7 +3095,8 @@ def mission():
         except Exception:
             pass
         try:
-            uct_mouse.display_text(1, "ERR " + type(e).__name__[:12])
+            msg = str(e) if str(e) else type(e).__name__
+            uct_mouse.display_text(1, "ERR " + msg[:12])
         except Exception:
             pass
         raise
@@ -3113,6 +3160,8 @@ def _mission():
         except Exception:
             pass
     m.calibrate()
+    if POS_MODEL and not IS_SIM:
+        m.encoder_check()               # ~1 cm forward; stops here with a clear message if an encoder is dead
     if SYSID:
         m.sysid()
     log("maze", rows, "x", cols, "side nom", SIDE_NOM, "start ToF L/C/R", m.dL, m.dC, m.dR,
