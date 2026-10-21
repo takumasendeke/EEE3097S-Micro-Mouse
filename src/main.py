@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v65 ENCFIX 27-Oct"
+BUILD = "v66 TURNFIX 28-Oct"
 
 try:
     import math
@@ -146,7 +146,8 @@ HW_POST_BLANK     = 30.0        # mm: ignore side readings while the side sensor
 HW_SPIN_MATCH     = 1           # 1 = spin with EQUAL wheel speeds (right motor ~25% weaker: equal PWM shifted the axle left on every turn)
 HW_SPIN_TRIM_MAX  = 20.0        # PWM: limit of the learned spin trim, as v53 (v55 tried 8)
 HW_TURN_PWM2      = 52          # spin PWM for correction tries, as v53 (v55 tried 46)
-HW_PIVOT_LEARN    = 0           # 0 = off (not in v53; inconclusive on the real mouse)
+HW_PIVOT_LEARN    = 1           # v66: learn per spin direction where to line up so the axle ENDS on the centre (v65: 3-17 mm left after every left turn)
+HW_PIVOT_MAX      = 6.0         # mm: most it lines up nearer / further from the wall ahead (front corners clear it by ~8 mm)
 HW_PSI_TURN       = 0.105       # rad (~6 deg): max recentring steer for the first 150 mm after a turn (off tested worse)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
@@ -884,7 +885,8 @@ class Mouse:
         self.spin_trim = 0.0    # PWM added to the right wheel in spins (learned: equal wheel speeds)
         self.enc_chk = 0        # 1 = check both encoders count on the first drive
         self.ec0 = None
-        self.pivot_off = 0.0    # mm: line up this much short of the centre before a turn at a wall (learned)
+        self.piv = [0.0, 0.0]   # mm: line up this much short of the centre before a CCW / CW spin at a wall (learned)
+        self.piv_k = -1         # which of the two the coming turn uses (-1 = none)
         self.front_turn = 0     # 1 = the last line-up was on a wall close ahead
         self.turn_side = 0      # last 90: +1 left turn (old front wall now on the right), -1 right turn
         self.boost_to = -1e9    # along-position until which the stronger post-turn steering applies
@@ -1107,6 +1109,8 @@ class Mouse:
         if TILT_LIM > 0.0 and v > 0.0:
             self.tk += 1
             if self.tk % 2 == 0 and self.tilted():
+                if not self.bump:
+                    log("TILT - a wheel is riding up a wall")
                 self.bump = 1
                 v = 0.0
                 w = 0.0
@@ -1358,9 +1362,9 @@ class Mouse:
     # Before turning on the spot: if there is a wall ahead, creep until the
     # front ToF reads the centred distance, so the corners cannot touch while
     # spinning, and use that wall to reset the along-track position.
-    def align_front(self):
+    def align_front(self, nd=-1):
         if ALIGN_MOVE:
-            self.align_move()
+            self.align_pos(nd)
             return
         d = self.d
         n = 0
@@ -1398,13 +1402,6 @@ class Mouse:
             a = self.cell_along(self.cx, self.cy, d) - self.along(d)
             self.X += DX[d] * a
             self.Y += DY[d] * a
-
-    # Board version: the front ToF is too noisy to servo on (it made the mouse
-    # hunt back and forth), so take ONE median reading standing still, fix
-    # the along-track position from it, and make one smooth encoder move to
-    # the cell centre.
-    def align_move(self):
-        self.align_pos()
 
     # Board: after a stop, a front median 45-110 mm longer than at a cell
     # centre means the mouse is between two cells - no centre is that far
@@ -1447,9 +1444,14 @@ class Mouse:
     # close ahead is measured (up to 25 readings standing still, median) and
     # weighted against the estimate; without one the estimate (encoders +
     # edge fixes) is all there is. Then one short encoder move to the centre.
-    def align_pos(self):
+    def align_pos(self, nd=-1):
         d = self.d
         t0 = self.now()
+        k = -1
+        dd = (nd - d) & 3 if nd >= 0 else 0
+        if dd == 1 or dd == 3:
+            k = 0 if (dd == 1) == (SIDE > 0) else 1     # physical spin: 0 = CCW (left turn), 1 = CW
+        self.piv_k = k
         vals = list(self.fvals) if self.fmed_ok else []
         near = 0
         for v in vals:
@@ -1477,15 +1479,15 @@ class Mouse:
                 self.front_turn = 1
         elif f < 8190:
             fx = self.far_fix(f)
-        if self.front_turn and HW_PIVOT_LEARN:
-            c -= self.pivot_off         # spins end this far forward: start that much short
+        if self.front_turn and HW_PIVOT_LEARN and k >= 0:
+            c -= self.piv[k]            # spins in this direction end this far forward: start that much short
         mv = c - self.along(d)
         if fabs(mv) > 60.0:
             log("align skipped, move", int(mv))     # pose estimate is off: do not drive blind
             return
         if fabs(mv) > HW_ALIGN_TOL:
             self.move_to(d, self.along(d) + clamp(mv, -30.0, 30.0))
-        log("align front", f, "fix", int(fx), "move", int(mv), "sa", int(self.sa()), "piv", int(self.pivot_off),
+        log("align front", f, "fix", int(fx), "move", int(mv), "sa", int(self.sa()), "piv", int(self.piv[k]) if k >= 0 else 0,
             "ms", self.now() - t0)
 
     # Gyro bias from samples taken with BOTH wheels dead still (a turn that
@@ -2342,24 +2344,34 @@ class Mouse:
             # along uncertainty before it.
             vl = 900.0 / (self.sLn if self.sLn > 0 else 1) + 9.0
             vr = 900.0 / (self.sRn if self.sRn > 0 else 1) + 9.0
+            # v66: the side sensors sit SIDE_X ahead of the axle, so a heading
+            # error after the turn moves their readings (v65 U-turn: 5 deg left
+            # read as 8 mm left, the axle was ~3 mm left)
+            psi = wrap180(self.th - 90.0 * self.d) * D2R
+            hc = SIDE_X * _sin(psi)
             if okl and okr:
-                z = clamp(0.5 * ((NOM_L - self.sLm) + (self.sRm - NOM_R)), -25.0, 25.0)
+                z = clamp(0.5 * ((NOM_L - self.sLm) + (self.sRm - NOM_R)) - hc, -25.0, 25.0)
                 m2 = 0.25 * (vl + vr)
             elif okl:
-                z = clamp(NOM_L - self.sLm, -15.0, 15.0)
+                z = clamp(NOM_L - self.sLm - hc, -15.0, 15.0)
                 m2 = vl + 25.0
             elif okr:
-                z = clamp(self.sRm - NOM_R, -15.0, 15.0)
+                z = clamp(self.sRm - NOM_R - hc, -15.0, 15.0)
                 m2 = vr + 25.0
             else:
                 return
-            if HW_PIVOT_LEARN and self.front_turn and self.turn_side != 0:
+            k = self.piv_k
+            if HW_PIVOT_LEARN and self.front_turn and self.turn_side != 0 and k >= 0:
                 # after a 90 lined up on a wall, the sideways offset now is how
-                # far the spin ended from the cell centre along the old axis:
-                # + = towards the old front wall (on the right after a left
-                # turn). v55: ~7 mm towards it every turn. Line up shorter.
-                tw = -z if self.turn_side > 0 else z
-                self.pivot_off = clamp(self.pivot_off + 0.3 * tw, 0.0, 6.0)    # never past the centre (front corners clear the wall by ~9 mm)
+                # far the spin ENDED from the cell centre along the old axis
+                # (+ = towards the old front wall), whether from the front
+                # reading or the spin itself. Learn where to line up for each
+                # spin direction (v65: 3-17 mm short after every left turn).
+                tw = clamp(-z if self.turn_side > 0 else z, -10.0, 10.0)
+                r = 0.35 if (okl and okr) else 0.2      # one wall: also carries the side-reading uncertainty
+                self.piv[k] = clamp(self.piv[k] + r * tw, -HW_PIVOT_MAX, HW_PIVOT_MAX)
+                self.piv[1 - k] = clamp(self.piv[1 - k] + 0.4 * r * tw, -HW_PIVOT_MAX, HW_PIVOT_MAX)  # a front-reading offset is shared
+            self.piv_k = -1
             self.front_turn = 0
             self.turn_side = 0
             d = self.d
@@ -2371,7 +2383,8 @@ class Mouse:
             self.Y += DX[d] * dl
             self.p11 = p * m2 / (p + m2)
             self.boost_to = self.along(d) + 150.0       # get back to the centre line quickly
-            log("latfix", int(z), "mm corr", int(dl), "g", int(100 * g), "piv", int(self.pivot_off))
+            log("latfix", int(z), "mm corr", int(dl), "g", int(100 * g), "hdg", int(psi / D2R), "side L/R", self.sLm, self.sRm,
+                "piv ccw/cw", int(self.piv[0]), int(self.piv[1]))
             return
 
     # Turn on the spot to heading nd without swinging the nose into a wall.
@@ -2804,7 +2817,7 @@ class Mouse:
         nmv = len(moves)
         f0 = moves[0]
         if f0 != self.d:
-            self.align_front()
+            self.align_front(f0)
         if f0 != self.d:
             self.safe_turn(f0)
             self.lat_fix(30 if POS_MODEL else 15)
@@ -2837,7 +2850,7 @@ class Mouse:
                 if j < nmv:
                     self.cx = ex
                     self.cy = ey
-                    self.align_front()
+                    self.align_front(nf)
                     self.safe_turn(nf)
                     self.lat_fix(30 if POS_MODEL else 15)
             x = ex
@@ -2984,7 +2997,7 @@ class Mouse:
     # v55 log against ~51 normally, and every one-wall correction was off).
     def nom_learn(self, sl, sr):
         global SIDE_NOM, NOM_L, NOM_R
-        if NOM_FIXED or len(sl) < 8 or len(sr) < 8 or fabs(wrap180(self.th - 90.0 * self.d)) > 5.0:
+        if NOM_FIXED or len(sl) < 8 or len(sr) < 8 or fabs(wrap180(self.th - 90.0 * self.d)) > 10.0:   # the L+R sum hardly changes with heading (v65: 5-7 deg off, never learned)
             return
         sl.sort()
         sr.sort()
@@ -3273,7 +3286,7 @@ def _mission():
             if nd < 0:
                 break
         if nd != m.d:
-            m.align_front()
+            m.align_front(nd)
             m.safe_turn(nd)
             fc = m.front_check(FRONT_CHECK) if FRONT_CHECK > 0 else 0
             m.lat_fix(0 if FRONT_CHECK > 0 else 15)     # 0 = reuse the side readings front_check just took
@@ -3306,7 +3319,7 @@ def _mission():
             fx = m.stop_fix()
             log("cell", m.cx, m.cy, "d", m.d, "walls L F R", wl, wf, wr, "votes L", m.vote[0], "/", m.vote[1],
                 "F", m.vfront[0], "/", m.vfront[1], "R", m.vote[2], "/", m.vote[3], "front", m.fmed,
-                "fix", fx, "th", int(m.th), "sa", int(m.sa()))
+                "fix", fx, "th", int(m.th), "sa", int(m.sa()), "side", m.sLm, m.sRm)
             m.kfh = 0.0
         i = m.cy * solver.cols + m.cx
         room = solver.check_room()
@@ -3361,7 +3374,7 @@ def _mission():
         if not moves or m.follow(moves, V_RETURN, V_TURN, 1):
             break
         k += 1                          # a front guard stopped it: replan from here
-    m.align_front()
+    m.align_front(0)
     m.safe_turn(0)                      # face the start heading (safe 180: back off, roomier side)
     # ---------------- Phase 4: pause, sprint ----------------
     save_log()                          # standing at the start: write now, not during the pause
