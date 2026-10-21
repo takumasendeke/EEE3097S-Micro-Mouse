@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v55 23-Oct 14:00"
+BUILD = "v56 23-Oct 18:00"
 
 try:
     import math
@@ -142,6 +142,7 @@ HW_POST_BLANK     = 30.0        # mm: ignore side readings while the side sensor
 HW_SPIN_MATCH     = 1           # 1 = spin with EQUAL wheel speeds (right motor ~25% weaker: equal PWM shifted the axle left on every turn)
 HW_SPIN_TRIM_MAX  = 8.0         # PWM: most the learned spin trim may add/take on the right wheel (v54: 20 let it over-drive the right)
 HW_TURN_PWM2      = 46          # spin PWM for the 2nd/3rd (correction) tries: slower = less overshoot, less axle shift
+HW_PIVOT_LEARN    = 1           # 1 = learn how far forward of centre the spins end (from the old front wall after each turn) and line up that much shorter
 HW_PSI_TURN       = 0.105       # rad (~6 deg): max recentring steer for the first 150 mm after a turn (HW_PSI_MAX elsewhere)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
@@ -869,6 +870,9 @@ class Mouse:
         self.pin = 0            # steps driven with the heading stuck far off (corner caught on a post)
         self.slip = 0           # steps the wheels and the gyro disagreed on the turn rate
         self.spin_trim = 0.0    # PWM added to the right wheel in spins (learned: equal wheel speeds)
+        self.pivot_off = 0.0    # mm: line up this much short of the centre before a turn at a wall (learned)
+        self.front_turn = 0     # 1 = the last line-up was on a wall close ahead
+        self.turn_side = 0      # last 90: +1 left turn (old front wall now on the right), -1 right turn
         self.boost_to = -1e9    # along-position until which the stronger post-turn steering applies
         self.hits = {}          # contacts per map edge (4 * cell + side)
 
@@ -1475,19 +1479,24 @@ class Mouse:
             f = vals[len(vals) // 2]
         c = self.cell_along(self.cx, self.cy, d)
         fx = 0.0
+        self.front_turn = 0
         if f < FRONT_NEAR:
             e = c + FRONT_CENTER - f - self.along(d)
             if fabs(e) < 60.0:
                 fx = self.abs_fix(e, self.front_sig(len(vals)))
+                self.front_turn = 1
         elif f < 8190:
             fx = self.far_fix(f)
+        if self.front_turn and HW_PIVOT_LEARN:
+            c -= self.pivot_off         # spins end this far forward: start that much short
         mv = c - self.along(d)
         if fabs(mv) > 60.0:
             log("align skipped, move", int(mv))     # pose estimate is off: do not drive blind
             return
         if fabs(mv) > HW_ALIGN_TOL:
             self.move_to(d, self.along(d) + clamp(mv, -30.0, 30.0))
-        log("align front", f, "fix", int(fx), "move", int(mv), "sa", int(self.sa()), "ms", self.now() - t0)
+        log("align front", f, "fix", int(fx), "move", int(mv), "sa", int(self.sa()), "piv", int(self.pivot_off),
+            "ms", self.now() - t0)
 
     # Gyro bias from samples taken with BOTH wheels dead still (a turn that
     # is still unwinding has zero forward motion but is still rotating).
@@ -2433,6 +2442,15 @@ class Mouse:
                 m2 = vr + 25.0
             else:
                 return
+            if HW_PIVOT_LEARN and self.front_turn and self.turn_side != 0:
+                # after a 90 lined up on a wall, the sideways offset now is how
+                # far the spin ended from the cell centre along the old axis:
+                # + = towards the old front wall (on the right after a left
+                # turn). v55: ~7 mm towards it every turn. Line up shorter.
+                tw = -z if self.turn_side > 0 else z
+                self.pivot_off = clamp(self.pivot_off + 0.3 * tw, 0.0, 12.0)    # never past the centre (front corners clear the wall by ~9 mm)
+            self.front_turn = 0
+            self.turn_side = 0
             d = self.d
             p = self.p11
             g = p / (p + m2)
@@ -2442,7 +2460,7 @@ class Mouse:
             self.Y += DX[d] * dl
             self.p11 = p * m2 / (p + m2)
             self.boost_to = self.along(d) + 150.0       # get back to the centre line quickly
-            log("latfix", int(z), "mm corr", int(dl), "g", int(100 * g))
+            log("latfix", int(z), "mm corr", int(dl), "g", int(100 * g), "piv", int(self.pivot_off))
             return
         if okl and okr:
             z = clamp(0.5 * ((NOM_L - self.sLm) + (self.sRm - NOM_R)), -15.0, 15.0)
@@ -2516,6 +2534,7 @@ class Mouse:
         self.turn_by(delta)
         self.d = nd
         if POS_MODEL:
+            self.turn_side = 0          # a 180 tells nothing about the pivot along the old axis
             self.swap_axes(delta)
             return
         self.p12 = 0.0
@@ -2542,6 +2561,9 @@ class Mouse:
         self.turn_by(delta)
         self.d = nd
         if POS_MODEL:
+            self.turn_side = 0
+            if fabs(fabs(wrap180(delta)) - 90.0) < 30.0:
+                self.turn_side = 1 if delta > 0.0 else -1
             self.swap_axes(delta)
             return
         self.p12 = 0.0
@@ -2660,6 +2682,8 @@ class Mouse:
         fo = 0
         tl = 0
         guard = 0
+        swl = []                    # board: this cell's wall readings (side-centre learning)
+        swr = []
         self.vc = 0.0
         if KEEP_IW:
             self.iw = self.iw_fwd
@@ -2675,10 +2699,14 @@ class Mouse:
                     nl += 1
                     if self.dL < SIDE_WALL:
                         vl += 1
+                        if POS_MODEL and len(swl) < 30:
+                            swl.append(self.dL)
                 if self.dR < 8190:
                     nr += 1
                     if self.dR < SIDE_WALL:
                         vr += 1
+                        if POS_MODEL and len(swr) < 30:
+                            swr.append(self.dR)
                 if self.dC < 8190:
                     if fabs(self.along(d) + FRONT_OFF + self.dC - (a0 + CELL * k + CELL / 2.0)) < 60.0:
                         fs += 1
@@ -2707,6 +2735,8 @@ class Mouse:
                 wr = 1 if (2 * vr > nr and vr >= 2 and 4 * vr >= tl) else 0
                 wf = 1 if (fs > fo and fs >= 2 and 4 * fs >= tl) else 0
                 self.vote = (vl, nl, vr, nr)
+                if POS_MODEL and wl and wr:
+                    self.nom_learn(swl, swr)
                 x1 = x0 + DX[d] * k
                 y1 = y0 + DY[d] * k
                 i1 = y1 * solver.cols + x1
@@ -2742,6 +2772,8 @@ class Mouse:
                     fs = 0
                     fo = 0
                     tl = 0
+                    swl = []
+                    swr = []
             rem = CELL * goal - rel + STOP_EXTRA
             self.a_goal = a0 + CELL * goal
             r2 = self.wall_rem(self.a_goal)
@@ -3080,23 +3112,30 @@ class Mouse:
             NOM_L = SIDE_NOM + 0.5 * SIDE_OFFSET
             NOM_R = SIDE_NOM - 0.5 * SIDE_OFFSET
             self.nom_n = 1
-        elif POS_MODEL and wl and wr and len(sl) >= 8 and len(sr) >= 8 \
-                and fabs(wrap180(self.th - 90.0 * self.d)) < 5.0:
-            # board: every still look with walls on both sides re-measures the
-            # centred reading (the mean of the two medians does not depend on
-            # where in the cell the mouse stands)
-            sl.sort()
-            sr.sort()
-            m = 0.5 * (sl[len(sl) // 2] + sr[len(sr) // 2])
-            if fabs(m - SIDE_NOM) < 20.0:
-                SIDE_NOM = m if self.nom_n == 0 else SIDE_NOM + 0.3 * (m - SIDE_NOM)
-                self.nom_n += 1
-                NOM_L = SIDE_NOM + 0.5 * SIDE_OFFSET * SIDE     # SIDE < 0: map L/R swapped
-                NOM_R = SIDE_NOM - 0.5 * SIDE_OFFSET * SIDE
-                if self.nom_n == 1 or fabs(SIDE_NOM - self.nom_log) > 2.0:
-                    self.nom_log = SIDE_NOM
-                    log("side nom", int(10 * SIDE_NOM) / 10.0)
+        elif POS_MODEL and wl and wr:
+            self.nom_learn(sl, sr)
         return wl, wf, wr
+
+    # Board: walls on both sides re-measure the centred side reading - the
+    # mean of the two medians does not depend on where across the corridor
+    # the mouse is. Standing still (still_walls) and on the move (continuous
+    # exploration: v54/v55 kept the start cell's value all run, 57 in the
+    # v55 log against ~51 normally, and every one-wall correction was off).
+    def nom_learn(self, sl, sr):
+        global SIDE_NOM, NOM_L, NOM_R
+        if NOM_FIXED or len(sl) < 8 or len(sr) < 8 or fabs(wrap180(self.th - 90.0 * self.d)) > 5.0:
+            return
+        sl.sort()
+        sr.sort()
+        m = 0.5 * (sl[len(sl) // 2] + sr[len(sr) // 2])
+        if fabs(m - SIDE_NOM) < 20.0:
+            SIDE_NOM = m if self.nom_n == 0 else SIDE_NOM + 0.3 * (m - SIDE_NOM)
+            self.nom_n += 1
+            NOM_L = SIDE_NOM + 0.5 * SIDE_OFFSET * SIDE     # SIDE < 0: map L/R swapped
+            NOM_R = SIDE_NOM - 0.5 * SIDE_OFFSET * SIDE
+            if self.nom_n == 1 or fabs(SIDE_NOM - self.nom_log) > 2.0:
+                self.nom_log = SIDE_NOM
+                log("side nom", int(10 * SIDE_NOM) / 10.0)
 
     # Is there a wall across the corridor at along-position `b`?
     def front_wall(self, centre):
