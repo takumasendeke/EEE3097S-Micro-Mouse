@@ -1,0 +1,52 @@
+S4 BUILD v64 STABLE 26-Oct
+mem free 31216
+gyro zero -0.98 deg/s spread 0.24
+battery 3.9 V
+maze 4 x 6 side nom 52.0 start ToF L/C/R 110 535 24 slot counts [1, 0, 1, 0, 1] gyro gain 1.0
+start walls L F R 1 0 1 centred L/R 50.5 54.5
+latfix 1 mm corr 1 g 87 piv 0
+encoder check L -110 R 123 ticks
+LEFT encoder counted backwards - direction flipped for this run
+side nom 52.8
+cell 1 0 d 0 walls L F R 1 0 1 votes L 46 / 51 F 0 / 60 R 42 / 42 front 482 fix 0 th 0 sa 25
+at 1 0 d 0 next 0 t 4.901
+cell 2 0 d 0 walls L F R 1 0 1 votes L 47 / 48 F 0 / 60 R 47 / 48 front 298 fix 0 th -1 sa 35
+at 2 0 d 0 next 0 t 8.23
+maze is on the LEFT of the start heading
+cell 3 0 d 0 walls L F R 0 1 1 votes L 0 / 60 F 28 / 28 R 45 / 47 front 37 fix -6 th -12 sa 3
+at 3 0 d 0 next 1 t 11.872
+align front 37 fix 0 move -1 sa 3 piv 0 ms 40
+turn 102 err -4.7 ovs 7.0 ms 1607 tries 3 coast 71 trim -5
+latfix 1 mm corr 42 g 76 piv 0
+cell 3 1 d 1 walls L F R 0 0 0 votes L 0 / 60 F 0 / 60 R 0 / 60 front 419 fix 0 th 92 sa 15
+at 3 1 d 1 next 1 t 16.949
+edge L ow e -14 fix -10 new p 18
+edge R ow e -6 fix -2 new p 18
+cell 3 2 d 1 walls L F R 1 0 1 votes L 48 / 53 F 0 / 60 R 41 / 41 front 167 fix 0 th 85 sa 14
+at 3 2 d 1 next 1 t 20.391
+cell 3 3 d 1 walls L F R 1 1 1 votes L 45 / 45 F 13 / 13 R 32 / 32 front 36 fix 0 th 90 sa 5
+at 3 3 d 1 next 3 t 24.163
+align front 35 fix 0 move -1 sa 3 piv 0 ms 848
+turn 120 err 4.8 ovs 11.6 ms 2356 tries 3 coast 67 trim -11
+latfix -4 mm corr 78 g 91 piv 0
+pass 3 2
+seen 3 1 d 3 front 36 fix -8 th 264 sa 5
+at 3 1 d 3 next 0 t 35.124
+align front 36 fix 0 move -1 sa 3 piv 0 ms 379
+turn 95 err -1.6 ovs 1.6 ms 935 tries 1 coast 69 trim -8
+latfix -6 mm corr 33 g 75 piv 0
+FRONT CHECK: wall ahead after turn, next 2
+align front 36 fix -31 move -10 sa 5 piv 0 ms 2607
+STALL - wheels blocked
+STALL - wheels blocked
+STALL - wheels blocked
+turn 140 err 4.7 ovs 3.8 ms 2457 tries 3 coast 66 trim -10
+latfix -1 mm corr -8 g 90 piv 0
+CONTACT - run stopped (any contact fails the demo)
+
+# Diagnosis (v65): the LEFT encoder counts one way whichever way its wheel turns
+# (direction channel dead/intermittent). Forward reads backwards at first ("L -110"),
+# v64 flipped it mid-drive; after that every LEFT spin (left wheel backwards) was counted
+# as forward motion -> fake ~35-40 mm move -> latfix corr 42 / 78 / 33 after each left turn.
+# Reversing (dead-end back-off) looked like standing still. board_emu --enc-fault lstuck-
+# reproduces it exactly (5/5 crashes, same latfix pattern).
