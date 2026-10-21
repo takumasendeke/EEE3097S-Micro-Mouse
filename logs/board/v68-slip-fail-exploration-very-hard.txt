@@ -1,0 +1,45 @@
+S4 BUILD v68 SLOW 28-Oct
+mem free 30016
+gyro zero -0.8 deg/s spread 0.04
+battery 3.71 V 
+maze 4 x 6 side nom 52.0 start ToF L/C/R 43 473 34 slot counts [1, 0, 1, 0, 1] gyro gain 1.0
+start walls L F R 1 0 1 centred L/R 47.5 51.5
+latfix -2 mm corr -2 g 87 hdg 0 side L/R 50 49 piv ccw/cw 0 0
+encoder check L 121 R 105 ticks counted, L 121 R 105 after the gyro check
+side nom 49.9
+cell 1 0 d 0 walls L F R 1 0 1 votes L 62 / 66 F 0 / 68 R 61 / 63 front 516 fix 0 th -1 sa 25 side 51 51
+at 1 0 d 0 next 0 t 5.581
+edge L wo e 3 fix 2 new p 18
+maze is on the LEFT of the start heading
+cell 2 0 d 0 walls L F R 0 0 1 votes L 0 / 80 F 0 / 80 R 57 / 61 front 465 fix 0 th 1 sa 15 side 0 50
+at 2 0 d 0 next 0 t 9.832
+edge L ow e -3 fix -2 new p 18
+cell 3 0 d 0 walls L F R 1 0 1 votes L 53 / 56 F 0 / 80 R 66 / 69 front 387 fix 0 th -6 sa 16 side 54 57
+at 3 0 d 0 next 0 t 14.185
+side nom 52.0
+cell 4 0 d 0 walls L F R 1 0 1 votes L 55 / 55 F 0 / 80 R 69 / 71 front 208 fix 0 th -1 sa 26 side 53 53
+at 4 0 d 0 next 0 t 18.474
+enc wrong-way steps L 1 R 0
+edge L wo e -5 fix -4 new p 18
+cell 5 0 d 0 walls L F R 0 1 1 votes L 0 / 80 F 37 / 37 R 69 / 71 front 46 fix -5 th -2 sa 3 side 0 56
+at 5 0 d 0 next 1 t 22.553
+align front 46 fix -1 move 6 sa 3 piv 0 ms 936
+turn 88 err 1.0 ovs 7.2 ms 1180 tries 2 coast 61 trim 2
+latfix -1 mm corr -2 g 77 hdg -1 side L/R 0 52 piv ccw/cw 0 0
+edge L ow e 0 fix 0 new p 18
+cell 5 1 d 1 walls L F R 1 0 1 votes L 54 / 56 F 0 / 80 R 66 / 73 front 385 fix 0 th 92 sa 14 side 47 59
+at 5 1 d 1 next 1 t 29.811
+enc wrong-way steps L 2 R 1
+cell 5 2 d 1 walls L F R 1 0 1 votes L 45 / 45 F 0 / 80 R 67 / 75 front 223 fix 0 th 90 sa 24 side 45 66
+at 5 2 d 1 next 1 t 34.006
+cell 5 3 d 1 walls L F R 1 1 1 votes L 59 / 60 F 54 / 54 R 71 / 75 front 49 fix -9 th 86 sa 3 side 46 60
+at 5 3 d 1 next 3 t 38.096
+align front 49 fix -1 move 9 sa 3 piv 0 ms 91
+turn -180 err -2.0 ovs 12.3 ms 2094 tries 3 coast 79 trim 11
+latfix -9 mm corr -6 g 92 hdg 2 side L/R 58 47 piv ccw/cw 0 0
+pass 5 2
+pass 5 1
+SLIP - wheels -69 gyro 0 deg/s  L 131 R 0 mm/s
+RIGHT ENCODER stopped counting while driving (cable / battery?)
+edge R wo e -3 fix -3 map p 16
+CONTACT - run stopped (any contact fails the demo)
