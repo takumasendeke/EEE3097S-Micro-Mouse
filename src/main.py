@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v64 STABLE 26-Oct"
+BUILD = "v65 ENCFIX 27-Oct"
 
 try:
     import math
@@ -58,6 +58,7 @@ HW_MOTOR_POL_L    = 1             # flipped for the Oct-2026 MicroPython firmwar
 HW_MOTOR_POL_R    = 1
 HW_ENC_POL_L      = -1
 HW_ENC_POL_R      = 1
+HW_ENC_FIX        = 1           # v65: undo wrong-way encoder counts with the gyro (v64: left encoder counted one way only)
 HW_LEFT_DEADBAND  = 20.0        # diag.py sweep 20 Oct: rolling dead-band (61 over-drove every command by ~40 PWM)
 HW_RIGHT_DEADBAND = 15.0        # diag.py sweep: 15.2
 HW_TICKS_PER_M    = 5709.0      # back to measured: the overshoot came from the wrong dead-band, not the encoders
@@ -106,7 +107,7 @@ HW_REVERSE_OUT    = 0           # 0 = 180 spin in dead ends (reversing is blind:
 HW_REV_HOME       = 0           # 0 = drive into the start forwards, then spin to face the start heading
 HW_SPIN_SHIFT     = 8.0         # mm step off a wall before a risky spin (15 left it off-centre into the next corridor)
 HW_V_REVERSE      = 100.0       # mm/s top speed backwards (slow: more side-wall fixes per mm)
-HW_SENSE_STEPS    = 60          # 10 ms steps of standing-still wall sensing per NEW cell (v53: 40)
+HW_SENSE_STEPS    = 80          # 10 ms steps of standing-still wall sensing per NEW cell (v53: 40, v64: 60)
 HW_SKIP_SEEN      = 1           # 1 = cells already mapped: no wall sensing, just a quick front fix
 HW_WALL_STOP      = 0           # 0 = stop on the position estimate (the near front wall corrects it while approaching)
 HW_ZUPT_STOP      = 1           # 1 = re-estimate the gyro bias while standing still (both wheels dead still)
@@ -181,6 +182,7 @@ MOT_POL_L = 1
 MOT_POL_R = 1
 ENC_POL_L = 1
 ENC_POL_R = 1
+ENC_FIX = 0
 DB_L = 40.0                     # first guesses only - SYSID measures them
 DB_R = 40.0
 TPMM = 5.0                      # encoder ticks per mm
@@ -383,7 +385,7 @@ def on_simulator():
 
 
 def select_profile():
-    global IS_SIM, MOT_POL_L, MOT_POL_R, ENC_POL_L, ENC_POL_R, DB_L, DB_R, TPMM
+    global IS_SIM, MOT_POL_L, MOT_POL_R, ENC_POL_L, ENC_POL_R, ENC_FIX, DB_L, DB_R, TPMM
     global GYRO_GAIN, CAL_SAMPLES, VMAX, TAU, MAZE_ROWS, MAZE_COLS, SIDE, SIDE_X
     global FRONT_OFF, SIDE_WALL, FRONT_FIX_MAX, TOF_SIGMA, V_EXPLORE, V_RETURN
     global V_SPRINT, V_TURN, ACCEL, W_TURN, ALPHA_TURN, TURN_TOL, KP_V, KI_V, KP_W, KI_W
@@ -428,6 +430,7 @@ def select_profile():
     MOT_POL_R = HW_MOTOR_POL_R
     ENC_POL_L = HW_ENC_POL_L
     ENC_POL_R = HW_ENC_POL_R
+    ENC_FIX = HW_ENC_FIX
     DB_L = HW_LEFT_DEADBAND
     DB_R = HW_RIGHT_DEADBAND
     TPMM = HW_TICKS_PER_M / 1000.0
@@ -784,8 +787,13 @@ class Mouse:
         self.d = 0              # current axis
         self.cx = 0
         self.cy = 0
-        self.el = 0
+        self.el = 0             # encoder counts, wrong-way steps undone (ENC_FIX)
         self.er = 0
+        self.rwl = 0            # last encoder readings as counted
+        self.rwr = 0
+        self.efl = 0            # steps whose count was reversed (left, right)
+        self.efr = 0
+        self.ef_log = 0
         self.v = 0.0            # measured forward speed mm/s
         self.rate = 0.0         # gyro rate deg/s, map frame
         self.rate_p = 0.0       # physical-frame rate
@@ -901,19 +909,56 @@ class Mouse:
         e = uct_mouse.get_encoders()
         l = e[0] * ENC_POL_L
         r = e[1] * ENC_POL_R
-        self.still_l = 1 if fabs(l - self.el) < 0.5 else 0
-        self.still_r = 1 if fabs(r - self.er) < 0.5 else 0
-        dl = (l - self.el) / TPMM
-        dr = (r - self.er) / TPMM
-        self.el = l
-        self.er = r
+        tl = l - self.rwl               # ticks this step, as the encoders counted them
+        tr = r - self.rwr
+        self.rwl = l
+        self.rwr = r
+        g = (uct_mouse.get_gyro() - self.bias) / GYRO_GAIN
+        if ENC_FIX:
+            # v65: an encoder can count the WRONG WAY (v64 board: the left one
+            # counted forwards while its wheel ran backwards in left spins and
+            # reverses). Keep each count's size; when the counts do not fit the
+            # gyro (right - left = yaw x track) and one wheel reversed does,
+            # reverse that one. The gyro picks the wheel only when it is clear
+            # (a spin counted as a straight); for a straight it is the wheel
+            # counting against its own motor command (unequal wheel speeds
+            # made the gyro pick the wrong one in emulation).
+            yt = (g + self.rate_p) * D2R * dt * HALF_AXLE * TPMM      # yaw this step, in ticks
+            e0 = fabs(tr - tl - yt)
+            sz = fabs(tl) + fabs(tr)
+            if e0 > 1.5 + 0.2 * sz:
+                e1 = fabs(tr + tl - yt)         # left reversed
+                e2 = fabs(tr + tl + yt)         # right reversed
+                f = 0
+                if e1 < 0.65 * e0 or e2 < 0.65 * e0:
+                    if fabs(e1 - e2) > 0.5 * sz:
+                        f = 1 if e1 < e2 else 2
+                    elif e1 < 0.65 * e0 and tl * self.pl_last < 0 and tr * self.pr_last >= 0:
+                        f = 1
+                    elif e2 < 0.65 * e0 and tr * self.pr_last < 0 and tl * self.pl_last >= 0:
+                        f = 2
+                    elif e1 < 0.65 * e0 and self.efl > self.efr + 3:
+                        f = 1
+                    elif e2 < 0.65 * e0 and self.efr > self.efl + 3:
+                        f = 2
+                if f == 1:
+                    tl = -tl
+                    self.efl += 1
+                elif f == 2:
+                    tr = -tr
+                    self.efr += 1
+        self.still_l = 1 if fabs(tl) < 0.5 else 0
+        self.still_r = 1 if fabs(tr) < 0.5 else 0
+        dl = tl / TPMM
+        dr = tr / TPMM
+        self.el += tl                   # counts with any wrong-way steps undone
+        self.er += tr
         ds = 0.5 * (dl + dr)
         self.ds = ds
         self.odo += ds if ds > 0.0 else -ds
         self.v += 0.4 * (ds / dt - self.v)
         self.vlw += 0.35 * (dl / dt - self.vlw)     # each wheel's own speed (wheel-PI mode)
         self.vrw += 0.35 * (dr / dt - self.vrw)
-        g = (uct_mouse.get_gyro() - self.bias) / GYRO_GAIN
         self.rate_p = g
         self.rate = g * SIDE
         thm = self.th + 0.5 * self.rate * dt          # mid-step heading
@@ -1067,6 +1112,8 @@ class Mouse:
                 w = 0.0
         if v == 0.0 and w == 0.0:
             uct_mouse.set_motors(0, 0)
+            self.pl_last = 0
+            self.pr_last = 0
             self.ilw = 0.0
             self.irw = 0.0
             self.iv *= 0.5
@@ -1168,9 +1215,12 @@ class Mouse:
             ff = DB_R + (p - DB_L) * (VMAX_L / (100.0 - DB_L)) / (VMAX_R / (100.0 - DB_R)) - p
             b = int(clamp(p + ff + self.spin_trim, 0.0, 100.0))
             if sg * SIDE > 0:
-                uct_mouse.set_motors(-a, b)
+                a = -a
             else:
-                uct_mouse.set_motors(a, -b)
+                b = -b
+            uct_mouse.set_motors(a, b)
+            self.pl_last = a
+            self.pr_last = b
             self.wait_period()
             self.sense()
             e = fabs(self.vlw) - fabs(self.vrw)         # > 0: left faster
@@ -1179,12 +1229,16 @@ class Mouse:
             return
         q = int(p) if sg * SIDE > 0 else -int(p)
         uct_mouse.set_motors(-q, q)
+        self.pl_last = -q
+        self.pr_last = q
         self.wait_period()
         self.sense()
 
     # Motors off and wait until the spin has really stopped.
     def spin_stop(self):
         uct_mouse.set_motors(0, 0)
+        self.pl_last = 0
+        self.pr_last = 0
         n = 0
         quiet = 0
         while n < 50 and quiet < 3:
@@ -1507,7 +1561,8 @@ class Mouse:
             return                      # short alignment moves only
         self.a_goal = a_end
         n = 0
-        while n < 120:
+        lim = min(120, 40 + int(5.0 * fabs(a_end - self.along(d))))    # ~1.5x the time it needs (v64 backed into a wall)
+        while n < lim:
             rem = a_end - self.along(d)
             if fabs(rem) < 2.0:
                 break
@@ -1693,6 +1748,8 @@ class Mouse:
         e = uct_mouse.get_encoders()
         self.el = e[0] * ENC_POL_L
         self.er = e[1] * ENC_POL_R
+        self.rwl = self.el
+        self.rwr = self.er
         self.last_ms = self.now()
         self.t0 = self.last_ms
         self.sense()
@@ -1704,37 +1761,40 @@ class Mouse:
 
     # Board: on the first drive, once one wheel has moved ~20 mm, check that
     # the other encoder counted too (v61: the LEFT encoder read ~0, the left
-    # wheel ran away, the mouse curved right). No separate start nudge (v62's
-    # puzzled you). Dead -> stop with a clear message; backwards -> flip.
+    # wheel ran away, the mouse curved right). Dead -> stop with a clear
+    # message. Counting backwards -> reverse it from here on. v64 did that
+    # after its estimates had used the wrong counts (latfix fixed 33-78 mm
+    # after every left turn, then it hit a wall); now sense() has undone the
+    # wrong-way steps all along, so the position does not jump.
     def first_drive_check(self):
         global ENC_POL_L, ENC_POL_R
         if self.ec0 is None:
-            self.ec0 = (self.el, self.er)
+            self.ec0 = (self.el, self.er, self.rwl, self.rwr)
             return
         dl = self.el - self.ec0[0]
         dr = self.er - self.ec0[1]
         if abs(dl) <= 120 and abs(dr) <= 120:
             return                      # judge once one wheel has done ~20 mm (wheels start from rest unevenly)
         self.enc_chk = 0
-        log("encoder check L", int(dl), "R", int(dr), "ticks")
-        if abs(dl) < 10:
+        ql = self.rwl - self.ec0[2]     # as counted
+        qr = self.rwr - self.ec0[3]
+        log("encoder check L", int(ql), "R", int(qr), "ticks counted, L", int(dl), "R", int(dr), "after the gyro check")
+        if abs(ql) < 10:
             uct_mouse.set_motors(0, 0)
             log("LEFT ENCODER NOT COUNTING - reseat its cable, charge the battery")
             raise RuntimeError("ENC L DEAD")
-        if abs(dr) < 10:
+        if abs(qr) < 10:
             uct_mouse.set_motors(0, 0)
             log("RIGHT ENCODER NOT COUNTING - reseat its cable, charge the battery")
             raise RuntimeError("ENC R DEAD")
-        if dl < 0 < dr:
+        if ql * dl < 0:
             ENC_POL_L = -ENC_POL_L
-            self.el = -self.el
-            self.vlw = -self.vlw
-            log("LEFT encoder counted backwards - direction flipped for this run")
-        elif dr < 0 < dl:
+            self.rwl = -self.rwl
+            log("LEFT encoder counts backwards - reversed (position unaffected)")
+        if qr * dr < 0:
             ENC_POL_R = -ENC_POL_R
-            self.er = -self.er
-            self.vrw = -self.vrw
-            log("RIGHT encoder counted backwards - direction flipped for this run")
+            self.rwr = -self.rwr
+            log("RIGHT encoder counts backwards - reversed (position unaffected)")
 
     # Start-up system identification (simulator profile): spin on the spot
     # at two PWM levels. Each wheel's steady tick rate is linear in PWM above
@@ -3255,6 +3315,10 @@ def _mission():
         else:
             nd = solver.next_dir(m.cx, m.cy, m.d)
         log("at", m.cx, m.cy, "d", m.d, "next", nd, "t", (m.now() - m.t0) / 1000.0)
+        if m.efl + m.efr != m.ef_log:
+            # steps whose encoder count went the wrong way (undone with the gyro)
+            m.ef_log = m.efl + m.efr
+            log("enc wrong-way steps L", m.efl, "R", m.efr)
     if solver.room is not None and (m.cy * solver.cols + m.cx) not in solver.room:
         # explored the whole maze: now drive to the room for the pirouette
         log("maze mapped - going to the room")
