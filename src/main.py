@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v68 SLOW 28-Oct"
+BUILD = "v69 LANE 29-Oct"
 
 try:
     import math
@@ -80,7 +80,8 @@ HW_RIGHT_SCALE    = 1.00        # straight driving: right wheel power x this, as
 HW_KPSI           = 8.0         # heading loop (1/s), as v53 (the only settings that completed mazes). Wobbles -> 6
 HW_VMAX_R         = 412.0       # RIGHT wheel, as v53 (completed mazes; v55 tried 424)
 HW_TURN_LATFIX    = 1           # 1 = after every turn, set the sideways position from still side readings before driving
-HW_PSI_MAX        = 0.07        # rad (~4 deg): max angle it steers to recentre (sim 0.14 ~8 deg = the bends/drift)
+HW_PSI_MAX        = 0.10        # rad (~6 deg): max angle it steers to recentre. v69: 4 deg could not beat a 5-8 deg heading error (v67)
+HW_STOP_LAT       = 1           # v69: at every new-cell stop, set the sideways position from the still side medians and correct the gyro heading from the walls
 HW_KLAT           = 0.010       # rad heading per mm off-centre (0.007 tested worse)
 
 HW_SIDE_OFFSET    = -4.0        # mm: + shifts the centre line RIGHT by half. v62 left too much room on the left: -4 = 2 mm left. Each 2 = 1 mm
@@ -855,6 +856,9 @@ class Mouse:
         self.stall = 0          # steps driven with the wheels hardly turning
         self.irw = 0.0
         self.kfh = 0.0          # degrees the side walls rotated the heading estimate (logged per cell)
+        self.kfl = 0.0          # mm the side walls moved the sideways estimate since the last still fix
+        self.sl_d = -1          # axis and along-position of the last still sideways fix (-1 = none on this axis)
+        self.sl_a = 0.0
         self.pl_last = 0        # last PWM sent to each motor
         self.pr_last = 0
         self.still_r = 1
@@ -1913,6 +1917,7 @@ class Mouse:
                 dl = k1 * nu
                 self.X -= DY[d] * dl
                 self.Y += DX[d] * dl
+                self.kfl += dl
                 self.th += k2 * nu / D2R
                 self.kfh += k2 * nu / D2R
                 p11 -= k1 * h1
@@ -2025,6 +2030,7 @@ class Mouse:
     # and latfix right after the turn is the check that catches it.
     # Edge trackers restart.
     def swap_axes(self, delta):
+        self.sl_d = -1
         sa = self.sa()
         if fabs(fabs(wrap180(delta)) - 90.0) < 45.0:
             p = self.p11
@@ -2312,6 +2318,51 @@ class Mouse:
         self.p22 += 0.0005      # yaw slide when the wheels stop
         self.p11 += 25.0
 
+    # v69 board: stopped on a new cell, the still side medians (80 readings)
+    # are the best sideways measurement there is. Set the sideways position
+    # from them. And if the walls had to move the estimate since the last
+    # still fix on this straight, the gyro heading was off by that much per
+    # mm driven: correct it, standing still, a bounded step at a time (v67:
+    # the gyro said 3-8 deg right while the walls showed it drifting left,
+    # and the 4 deg steering limit could not win).
+    def stop_lat(self):
+        if not HW_STOP_LAT:
+            return
+        okl = self.sLm and self.sLn >= 15 and fabs(self.sLm - NOM_L) < 25.0
+        okr = self.sRm and self.sRn >= 15 and fabs(self.sRm - NOM_R) < 25.0
+        d = self.d
+        psi = wrap180(self.th - 90.0 * d) * D2R
+        hc = SIDE_X * _sin(psi)
+        if okl and okr:
+            z = 0.5 * ((NOM_L - self.sLm) + (self.sRm - NOM_R)) - hc
+            m2 = 9.0
+        elif okl:
+            z = NOM_L - self.sLm - hc
+            m2 = 36.0
+        elif okr:
+            z = self.sRm - NOM_R - hc
+            m2 = 36.0
+        else:
+            return
+        e = z - (self.lateral(d) - self.cell_lat(self.cx, self.cy, d))
+        p = self.p11
+        g = p / (p + m2)
+        dl = g * e
+        self.X -= DY[d] * dl
+        self.Y += DX[d] * dl
+        self.p11 = p * m2 / (p + m2)
+        a = self.along(d)
+        c = 0.0
+        if okl and okr and self.sl_d == d and 120.0 < fabs(a - self.sl_a) < 650.0:
+            c = clamp(0.5 * (self.kfl + e) / fabs(a - self.sl_a), -0.07, 0.07)
+            self.th += c / D2R
+        if fabs(z) > 5.0:
+            self.boost_to = a + 150.0
+        self.sl_d = d
+        self.sl_a = a
+        self.kfl = 0.0
+        log("stop lat", int(z), "corr", int(dl), "hdg fix", int(10 * c / D2R) / 10.0)
+
     # After a turn: any along error from before the turn is now a SIDEWAYS
     # error in the new corridor. Standing still, take the median side
     # readings and set the lateral position from them, so the drive steers
@@ -2382,6 +2433,9 @@ class Mouse:
             self.Y += DX[d] * dl
             self.p11 = p * m2 / (p + m2)
             self.boost_to = self.along(d) + 150.0       # get back to the centre line quickly
+            self.sl_d = d
+            self.sl_a = self.along(d)
+            self.kfl = 0.0
             log("latfix", int(z), "mm corr", int(dl), "g", int(100 * g), "hdg", int(psi / D2R), "side L/R", self.sLm, self.sRm,
                 "piv ccw/cw", int(self.piv[0]), int(self.piv[1]))
             return
@@ -3048,105 +3102,6 @@ def wait_for_start():
     uct_mouse.delay_ms(1500)                    # hands clear before the gyro is calibrated
 
 
-# =========================================================================
-# Calibration mode (HW_CALIBRATE): measures this mouse and prints the HW_
-# values to paste. Place it centred in the start cell facing along the
-# corridor with at least 2 clear cells ahead, then press SW1.
-# =========================================================================
-def cal_med(vals):
-    if len(vals) < 3:
-        return 0
-    vals.sort()
-    return vals[len(vals) // 2]
-
-
-def cal_sides(m, steps):
-    sl = []
-    sr = []
-    n = 0
-    while n < steps:
-        m.step(0.0, 0.0)
-        if m.dL < SIDE_WALL:
-            sl.append(m.dL)
-        if m.dR < SIDE_WALL:
-            sr.append(m.dR)
-        n += 1
-    return cal_med(sl), cal_med(sr)
-
-
-# Both wheels on their OWN encoder speed loop at vt mm/s (no steering).
-# ramp = 1: first raise both PWMs from 55 until each wheel starts moving.
-# Returns averages over the settled part: (pwmL, pwmR, vL, vR, yaw deg/s,
-# start PWM L, start PWM R) or None.
-def cal_run(m, vt, steps, ramp):
-    if ramp:
-        pl = 55.0
-        pr = 55.0
-    else:
-        pl = DB_L + vt * (100.0 - DB_L) / VMAX_L
-        pr = DB_R + vt * (100.0 - DB_R) / VMAX_R
-    gl = 0 if ramp else 1
-    gr = 0 if ramp else 1
-    bl = 0
-    br = 0
-    fl = 0.0
-    fr = 0.0
-    d = m.d
-    ql = m.el                   # encoder at the start of the current ramp window
-    qr = m.er
-    sl = sr = svl = svr = sy = 0.0
-    ns = 0
-    n = 0
-    k = 0
-    while k < 900 and n < steps:
-        k += 1
-        uct_mouse.set_motors(int(pl), int(pr))
-        l0 = m.el
-        r0 = m.er
-        m.wait_period()
-        m.sense()
-        vl = (m.el - l0) / TPMM / m.dt
-        vr = (m.er - r0) / TPMM / m.dt
-        fl += 0.3 * (vl - fl)
-        fr += 0.3 * (vr - fr)
-        # hold the heading on the gyro by splitting the two wheel targets
-        # (each wheel's PWM is still fitted against its OWN speed)
-        # (gentle 2.5/s: faster than the wheel loops it would oscillate)
-        dv = clamp(-2.5 * wrap180(m.th - 90.0 * d) * D2R * HALF_AXLE, -40.0, 40.0) * SIDE
-        if not gl:
-            if fabs(m.el - ql) >= 2:
-                gl = 1
-                bl = int(pl)
-            elif k % 3 == 0:
-                pl += 1.0               # slow ramp: +1 PWM per 30 ms
-                ql = m.el
-        else:
-            pl = clamp(pl + 0.015 * (vt - dv - fl), 0.0, 100.0)   # gentle: a wheel dropped below its rolling PWM sticks again
-        if not gr:
-            if fabs(m.er - qr) >= 2:
-                gr = 1
-                br = int(pr)
-            elif k % 3 == 0:
-                pr += 1.0
-                qr = m.er
-        else:
-            pr = clamp(pr + 0.015 * (vt + dv - fr), 0.0, 100.0)
-        if gl and gr:
-            n += 1
-            if n > steps // 2:
-                sl += pl
-                sr += pr
-                svl += fl
-                svr += fr
-                sy += m.rate_p
-                ns += 1
-        elif pl > 99.0 or pr > 99.0:
-            break
-    if ns == 0:
-        return None
-    return (sl / ns, sr / ns, svl / ns, svr / ns, sy / ns, bl, br)
-
-
 
 
 def mission():
@@ -3316,6 +3271,7 @@ def _mission():
             if EDGE_FIX:
                 m.edge_confirm()
             fx = m.stop_fix()
+            m.stop_lat()
             log("cell", m.cx, m.cy, "d", m.d, "walls L F R", wl, wf, wr, "votes L", m.vote[0], "/", m.vote[1],
                 "F", m.vfront[0], "/", m.vfront[1], "R", m.vote[2], "/", m.vote[3], "front", m.fmed,
                 "fix", fx, "th", int(m.th), "sa", int(m.sa()), "side", m.sLm, m.sRm)
