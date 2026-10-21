@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v57 23-Oct 21:00"
+BUILD = "v58 24-Oct 10:00"
 
 try:
     import math
@@ -78,11 +78,13 @@ HW_GYRO_TRIM      = 0.0         # deg/s added to gyro bias. Drifts RIGHT -> make
 HW_TEST_STRAIGHT  = 0           # >0: just drive this many cells straight and stop (calibration)
 HW_TEST_TURN      = 0           # >0: in the start cell do this many 90 deg turns left, then right, print each
 HW_CALIBRATE      = 0           # 1 = calibration run, prints the values to paste below; 2 = also side-sensor offset
+HW_RIGHT_SCALE    = 1.00        # STRAIGHT DRIVING: right wheel power x this. Leans/ends LEFT -> 0.97, 0.95 ... ; leans RIGHT -> 1.03
+HW_KPSI           = 8.0         # how hard it steers back onto its heading (1/s). Weaves/over-corrects -> 6, then 5; sluggish -> 10
 HW_VMAX_R         = 424.0       # RIGHT wheel, as measured by diag.py (412 gave the right wheel extra drive: v54 drifted left)
 HW_TURN_LATFIX    = 1           # 1 = after every turn, set the sideways position from still side readings before driving
 HW_PSI_MAX        = 0.07        # rad (~4 deg): max angle it steers to recentre (sim 0.14 ~8 deg = the bends/drift)
-HW_KLAT           = 0.010       # rad heading per mm off-centre (0.012 + noisy sides steered it up to 8 deg)
-HW_SIDE_OFFSET    = 0.0         # mm: + moves the centre line RIGHT. v47 log: after line-ups latfix read +4.5 on BOTH walls = exactly 9/2, so 9 drove it 4.5 mm right all run (both crashes: right-side posts)
+HW_KLAT           = 0.010       # rad heading per mm off-centre (0.007 tested worse)
+HW_SIDE_OFFSET    = 0.0         # mm: + moves the centre line RIGHT by half. Fix a lean with HW_RIGHT_SCALE first
 
 HW_STOP_EACH_CELL = 0           # 0 = continuous: walls sensed on the move, stops only to turn (1 = v53: stop on every cell)
 HW_SIDE_GUARD     = 35.0        # mm side reflex (25 let it drift onto the prongs - back to 35)
@@ -142,8 +144,8 @@ HW_POST_BLANK     = 30.0        # mm: ignore side readings while the side sensor
 HW_SPIN_MATCH     = 1           # 1 = spin with EQUAL wheel speeds (right motor ~25% weaker: equal PWM shifted the axle left on every turn)
 HW_SPIN_TRIM_MAX  = 8.0         # PWM: most the learned spin trim may add/take on the right wheel (v54: 20 let it over-drive the right)
 HW_TURN_PWM2      = 46          # spin PWM for the 2nd/3rd (correction) tries: slower = less overshoot, less axle shift
-HW_PIVOT_LEARN    = 1           # 1 = learn how far forward of centre the spins end (from the old front wall after each turn) and line up that much shorter
-HW_PSI_TURN       = 0.105       # rad (~6 deg): max recentring steer for the first 150 mm after a turn (HW_PSI_MAX elsewhere)
+HW_PIVOT_LEARN    = 1           # 1 = learn how far forward of centre spins end; capped at 6 mm (v56 reached 10)
+HW_PSI_TURN       = 0.105       # rad (~6 deg): max recentring steer for the first 150 mm after a turn (off tested worse)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
@@ -387,7 +389,7 @@ def select_profile():
     global DEBUG, FRONT_STOP, FRONT_CENTER, TILT_LIM, KF_HEADING, STOP_EACH, WALL_K, GYRO_TRIM, TEST_STRAIGHT, SIDE_AUTO, SIDE_GUARD, TPMM_AUTO, FRONT_SNAP, GYRO_AUTO, ROOM_MAX_DOORS, VMAX_L, VMAX_R, SYSID
     global FRONT_REACT, FRONT_CHECK, TURN_LEAD, TURN_KLIN, TURN_WMIN, ALIGN_MOVE, ARCS, KEEP_IW, STOP_FIX
     global PIVOT_BACK, REVERSE_OUT, REV_HOME, SPIN_SHIFT, V_REVERSE, SENSE_STEPS, SKIP_SEEN, WALL_STOP, ZUPT_STOP
-    global KLAT, PSI_MAX, WHEEL_PI, STOP_EXTRA, FRONT_NEAR, POS_MODEL, EDGE_FIX, SIDE_NOM, NOM_L, NOM_R, NOM_FIXED
+    global KPSI, KLAT, PSI_MAX, WHEEL_PI, STOP_EXTRA, FRONT_NEAR, POS_MODEL, EDGE_FIX, SIDE_NOM, NOM_L, NOM_R, NOM_FIXED
     global TURN_BB, TURN_PWM, TURN_COAST, KICK_L, KICK_R, LOOP_FIXED, SIDE_OFFSET, STOP_CREEP, STRAIGHTEN, EXPLORE_ALL, BRAKE_HOLD
     IS_SIM = on_simulator()
     if IS_SIM == 1:
@@ -441,6 +443,7 @@ def select_profile():
     WHEEL_PI = HW_WHEEL_PI
     STOP_EXTRA = HW_STOP_EXTRA
     PSI_MAX = HW_PSI_MAX
+    KPSI = HW_KPSI
     SYSID = HW_SYSID
     TPMM_AUTO = HW_TPMM_AUTO
     TAU = HW_TAU
@@ -1090,7 +1093,7 @@ class Mouse:
             else:
                 self.stall = 0
             pl = int(clamp(wheel_ff(cl, DB_L, VMAX_L) + HW_WHEEL_KP * el + self.ilw, -100.0, 100.0))
-            pr = int(clamp(wheel_ff(cr, DB_R, VMAX_R) + HW_WHEEL_KP * er + self.irw, -100.0, 100.0))
+            pr = int(clamp(HW_RIGHT_SCALE * wheel_ff(cr, DB_R, VMAX_R) + HW_WHEEL_KP * er + self.irw, -100.0, 100.0))
             uct_mouse.set_motors(pl, pr)
             self.pl_last = pl
             self.pr_last = pr
@@ -2221,7 +2224,7 @@ class Mouse:
                 # + = towards the old front wall (on the right after a left
                 # turn). v55: ~7 mm towards it every turn. Line up shorter.
                 tw = -z if self.turn_side > 0 else z
-                self.pivot_off = clamp(self.pivot_off + 0.3 * tw, 0.0, 12.0)    # never past the centre (front corners clear the wall by ~9 mm)
+                self.pivot_off = clamp(self.pivot_off + 0.3 * tw, 0.0, 6.0)    # never past the centre (front corners clear the wall by ~9 mm)
             self.front_turn = 0
             self.turn_side = 0
             d = self.d
