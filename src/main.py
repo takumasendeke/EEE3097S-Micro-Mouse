@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v66 TURNFIX 28-Oct"
+BUILD = "v67 SLOW 28-Oct"
 
 try:
     import math
@@ -92,7 +92,7 @@ HW_SIDE_GUARD     = 35.0        # mm side reflex (25 let it drift onto the prong
 
 HW_FRONT_STOP     = 30.0        # mm: front reflex - blocked below this + speed * HW_FRONT_REACT (centre reads 37 now)
 HW_FRONT_REACT    = 0.15        # s: ToF latency + braking time, so faster = stop earlier
-HW_FRONT_CHECK    = 30          # steps: after each explore turn, look ahead standing still (also feeds latfix)
+HW_FRONT_CHECK    = 40  # v67: longer still look after each turn (v66: 30)
 HW_TURN_LEAD      = 0.06        # s: brake on the predicted stopping heading (motor lag), stops overshoot
 HW_TURN_KLIN      = 10.0        # 1/s: gentle linear approach for the last ~20 deg (no chatter at the end)
 HW_TURN_WMIN      = 20.0        # deg/s: never command less while outside tolerance (beats stiction)
@@ -114,7 +114,7 @@ HW_ZUPT_STOP      = 1           # 1 = re-estimate the gyro bias while standing s
 # Flight log (real mouse): spinning on the spot the wheels STALL at PWM 64-70 and
 # spin fast at 75; from rest the right wheel starts later than the left.
 HW_TURN_BB        = 1           # 1 = spin turns at a fixed PWM, cut early, coast onto the heading
-HW_TURN_PWM       = 52          # spin PWM: diag turned cleanly at ~200 deg/s around 50-60 (80 spun ~350 deg/s)
+HW_TURN_PWM       = 48  # v67: slower spins, less overshoot/slide (v66: 52; wheels start ~42-46)
 HW_TURN_COAST     = 0.045       # s: coast per deg/s after cutting (diag: ~7 deg at 200 deg/s); learned each turn
 
 HW_KICK_L         = 0           # start kick off: per-wheel speed control starts both wheels together (diag.py had none)
@@ -145,7 +145,7 @@ HW_ON_CONTACT     = 1           # 1 = any contact (BUMP/STALL/PINNED/SLIP/turn b
 HW_POST_BLANK     = 30.0        # mm: ignore side readings while the side sensor is this close to a cell boundary (posts, wall ends)
 HW_SPIN_MATCH     = 1           # 1 = spin with EQUAL wheel speeds (right motor ~25% weaker: equal PWM shifted the axle left on every turn)
 HW_SPIN_TRIM_MAX  = 20.0        # PWM: limit of the learned spin trim, as v53 (v55 tried 8)
-HW_TURN_PWM2      = 52          # spin PWM for correction tries, as v53 (v55 tried 46)
+HW_TURN_PWM2      = 48  # v67: correction spins as slow (v66: 52)
 HW_PIVOT_LEARN    = 1           # v66: learn per spin direction where to line up so the axle ENDS on the centre (v65: 3-17 mm left after every left turn)
 HW_PIVOT_MAX      = 6.0         # mm: most it lines up nearer / further from the wall ahead (front corners clear it by ~8 mm)
 HW_PSI_TURN       = 0.105       # rad (~6 deg): max recentring steer for the first 150 mm after a turn (off tested worse)
@@ -154,11 +154,11 @@ HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measure
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
 HW_FRONT_SNAP     = 30.0        # mm: front fix only if within this of a wall line
 HW_TOF_SIGMA      = 20.0        # mm side ToF noise (tof_check: spread ~+-20 standing still)
-HW_V_EXPLORE      = 100.0       # mm/s explore: slow for rigour (v53: 120)
-HW_V_RETURN       = 120.0       # mm/s return: slow for rigour (v53: 160)
+HW_V_EXPLORE      = 75.0  # v67: slower for rigour (v66: 100, v53: 120)
+HW_V_RETURN       = 90.0  # v67: slower for rigour (v66: 120)
 HW_V_SPRINT       = 200.0       # mm/s sprint = 2x explore. 240-300 doubled sprint crashes in emulation; raise +20 at a time only once runs are clean
 HW_V_TURN         = 170.0       # mm/s through smooth 90 deg arcs
-HW_ACCEL          = 400.0       # mm/s^2 (as v53): stops from 150 mm/s in 28 mm, inside the 60 mm a turn is decided ahead
+HW_ACCEL          = 300.0  # v67: gentler starts/stops (v66: 400)
 HW_W_TURN         = 180.0       # deg/s in-place turn ceiling
 HW_ALPHA_TURN     = 1000.0      # deg/s^2
 HW_TURN_TOL       = 3.0         # deg: accept the spin within this (1.5 caused extra back-and-forth corrections)
@@ -2353,10 +2353,10 @@ class Mouse:
                 z = clamp(0.5 * ((NOM_L - self.sLm) + (self.sRm - NOM_R)) - hc, -25.0, 25.0)
                 m2 = 0.25 * (vl + vr)
             elif okl:
-                z = clamp(NOM_L - self.sLm - hc, -15.0, 15.0)
+                z = clamp(NOM_L - self.sLm - hc, -25.0, 25.0)     # v66 clipped at 15 when it was ~22 off
                 m2 = vl + 25.0
             elif okr:
-                z = clamp(self.sRm - NOM_R - hc, -15.0, 15.0)
+                z = clamp(self.sRm - NOM_R - hc, -25.0, 25.0)
                 m2 = vr + 25.0
             else:
                 return
