@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v70 LANE 29-Oct"
+BUILD = "v71 FINAL 30-Oct"
 
 try:
     import math
@@ -81,8 +81,7 @@ HW_KPSI           = 8.0         # heading loop (1/s), as v53 (the only settings 
 HW_VMAX_R         = 412.0       # RIGHT wheel, as v53 (completed mazes; v55 tried 424)
 HW_TURN_LATFIX    = 1           # 1 = after every turn, set the sideways position from still side readings before driving
 HW_PSI_MAX        = 0.10        # rad (~6 deg): max angle it steers to recentre. v69: 4 deg could not beat a 5-8 deg heading error (v67)
-HW_ODO_LEARN      = 1           # v70: learn the odometry scale from front-wall fixes (v68: 59 of 60 were negative = arrived short)
-HW_RETURN_STOPS   = 1           # v70: the return stops and senses on every cell, like exploration
+HW_RETURN_STOPS   = 1           # v71: kept ON - continuous returns caused 4 of 9 emulator failures; v70's stopped return had the best corners on the real mouse
 HW_STOP_LAT       = 1           # v69: at every new-cell stop, set the sideways position from the still side medians and correct the gyro heading from the walls
 HW_KLAT           = 0.010       # rad heading per mm off-centre (0.007 tested worse)
 
@@ -157,9 +156,9 @@ HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measure
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
 HW_FRONT_SNAP     = 30.0        # mm: front fix only if within this of a wall line
 HW_TOF_SIGMA      = 20.0        # mm side ToF noise (tof_check: spread ~+-20 standing still)
-HW_V_EXPLORE      = 75.0  # v67: slower for rigour (v66: 100, v53: 120)
+HW_V_EXPLORE      = 85.0  # v71: a little faster (v70: 75); explore was the solid phase
 HW_V_RETURN       = 90.0  # v67: slower for rigour (v66: 120)
-HW_V_SPRINT       = 160.0       # v70: 160 (v68's only failure and its worst along errors were in the 200 mm/s sprint)
+HW_V_SPRINT       = 130.0  # v71: slower (v70: 160); every v70 failure was in the sprint, still 1.5x explore
 HW_V_TURN         = 170.0       # mm/s through smooth 90 deg arcs
 HW_ACCEL          = 300.0  # v67: gentler starts/stops (v66: 400)
 HW_W_TURN         = 180.0       # deg/s in-place turn ceiling
@@ -519,6 +518,7 @@ class MazeSolver:
         self.known = [0] * self.n       # bit d set = side d has been observed
         self.visited = [0] * self.n
         self.room = None                # list of 4 cell indices once found
+        self.weak = []                  # (x, y, d) walls seen by a weak vote, re-checked if no room turns up
         x = 0
         while x < cols:
             self.set_wall(x, 0, 3, 1)
@@ -555,6 +555,27 @@ class MazeSolver:
                 self.wall[j] |= ob
             else:
                 self.wall[j] &= ~ob
+
+    # v71: exploration ended without a room (v70: a 56/80 side vote closed
+    # the room's only door). Walls seen by a weak vote that face an unvisited
+    # cell become unknown again: the explorer goes back, faces each one and
+    # checks it with the front sensor (FRONT CHECK) before driving through.
+    def unweak(self):
+        n = 0
+        for x, y, d in self.weak:
+            nx = x + DX[d]
+            ny = y + DY[d]
+            if self.inside(nx, ny) and not self.visited[ny * self.cols + nx]:
+                i = y * self.cols + x
+                j = ny * self.cols + nx
+                self.known[i] &= ~(1 << d)
+                self.wall[i] &= ~(1 << d)
+                ob = 1 << ((d + 2) & 3)
+                self.known[j] &= ~ob
+                self.wall[j] &= ~ob
+                n += 1
+        self.weak = []
+        return n
 
     def is_open(self, i, d, optimistic):
         b = 1 << d
@@ -634,7 +655,11 @@ class MazeSolver:
         return best
 
     # Seeds for the exploration floodfill: cells that could complete a
-    # plausible room are cheapest, any other unvisited cell costs more.
+    # plausible room are cheapest. v71: a cell that NO possible room can
+    # contain (every 2x2 block round it has an interior wall seen closed, or
+    # too many openings) is not a target at all - it is only driven through
+    # when it is on the way, so the search ends as soon as the room is the
+    # only place left it can be.
     def _explore_seeds(self):
         if self.room is not None and not EXPLORE_ALL:
             return [(i, 0) for i in self.room]
@@ -650,9 +675,9 @@ class MazeSolver:
                     ro, ru = self._count(self._rim(bx, by))
                     if ro > ROOM_MAX_DOORS:
                         bad = 1
-                if not bad and nopen >= 2:
+                if not bad:
                     i0 = by * self.cols + bx
-                    cost = 0 if nopen >= 3 else 1
+                    cost = 0 if nopen >= 3 else (1 if nopen >= 2 else 2)
                     for i in (i0, i0 + 1, i0 + self.cols, i0 + self.cols + 1):
                         if not self.visited[i] and cost < best[i]:
                             best[i] = cost
@@ -660,11 +685,8 @@ class MazeSolver:
             by += 1
         i = 0
         while i < self.n:
-            if not self.visited[i]:
-                c = best[i]
-                if c > 3:
-                    c = 3
-                seeds.append((i, c))
+            if not self.visited[i] and best[i] < 9:
+                seeds.append((i, best[i]))
             i += 1
         return seeds
 
@@ -872,7 +894,6 @@ class Mouse:
         self.fvals = []         # front readings of the last stationary look
         self.sa0 = 10.0         # along-track uncertainty (mm, 1 sigma) at the last position fix
         self.odo = 0.0          # mm driven since that fix (the uncertainty grows with it)
-        self.odf = 0.0          # mm driven since the last front-wall fix (odometry scale learning)
         self.ecls = [0, 0]      # side edge tracker (L, R): class 0 none, 1 wall, 2 open
         self.en = [0, 0]        # valid readings in a row of that class
         self.ea = [0.0, 0.0]    # along-position of the last one
@@ -889,7 +910,7 @@ class Mouse:
         self.nom_log = 0.0
         self.pin = 0            # steps driven with the heading stuck far off (corner caught on a post)
         self.slip = 0           # steps the wheels and the gyro disagreed on the turn rate
-        self.spin_trim = 0.0    # PWM added to the right wheel in spins (learned: equal wheel speeds)
+        self.trim = [0.0, 0.0]  # PWM added to the right wheel in CCW / CW spins (learned: equal wheel speeds)
         self.enc_chk = 0        # 1 = check both encoders count on the first drive
         self.ec0 = None
         self.piv = [0.0, 0.0]   # mm: line up this much short of the centre before a CCW / CW spin at a wall (learned)
@@ -964,7 +985,6 @@ class Mouse:
         ds = 0.5 * (dl + dr)
         self.ds = ds
         self.odo += ds if ds > 0.0 else -ds
-        self.odf += ds if ds > 0.0 else -ds
         self.v += 0.4 * (ds / dt - self.v)
         self.vlw += 0.35 * (dl / dt - self.vlw)     # each wheel's own speed (wheel-PI mode)
         self.vrw += 0.35 * (dr / dt - self.vrw)
@@ -1224,7 +1244,9 @@ class Mouse:
             # plus a trim learned from the encoders, kept from spin to spin.
             a = int(p)
             ff = DB_R + (p - DB_L) * (VMAX_L / (100.0 - DB_L)) / (VMAX_R / (100.0 - DB_R)) - p
-            b = int(clamp(p + ff + self.spin_trim, 0.0, 100.0))
+            k = 0 if sg * SIDE > 0 else 1   # v71: one trim per spin direction (a shared one swung -19..+10
+            #                                 and CCW spins with it >= 0 ended ~6 mm forward)
+            b = int(clamp(p + ff + self.trim[k], 0.0, 100.0))
             if sg * SIDE > 0:
                 a = -a
             else:
@@ -1236,7 +1258,7 @@ class Mouse:
             self.sense()
             e = fabs(self.vlw) - fabs(self.vrw)         # > 0: left faster
             if learn and fabs(self.vlw) > 60.0:
-                self.spin_trim = clamp(self.spin_trim + 0.01 * e, -HW_SPIN_TRIM_MAX, HW_SPIN_TRIM_MAX)    # learning rate as v53
+                self.trim[k] = clamp(self.trim[k] + 0.01 * e, -HW_SPIN_TRIM_MAX, HW_SPIN_TRIM_MAX)    # learning rate as v53
             return
         q = int(p) if sg * SIDE > 0 else -int(p)
         uct_mouse.set_motors(-q, q)
@@ -1311,10 +1333,13 @@ class Mouse:
                 ovs = fabs(err)
             tries += 1
         err = target - self.th
+        if POS_MODEL and fabs(err) > 45.0:
+            log("TURN FAILED err", int(err))     # wedged or spun away: stop rather than drive off at a random heading
+            self.contact()
         if DEBUG:
             log("turn", int(delta), "err", int(10 * err) / 10.0, "ovs", int(10 * ovs) / 10.0,
                 "ms", self.now() - t0, "tries", tries, "coast", int(1000 * self.tcoast),
-                "trim", int(self.spin_trim))
+                "trim", int(self.trim[0]), int(self.trim[1]))
         self.p22 += 0.0005
         self.p11 += 25.0
 
@@ -1371,7 +1396,12 @@ class Mouse:
     # spinning, and use that wall to reset the along-track position.
     def align_front(self, nd=-1):
         if ALIGN_MOVE:
-            self.align_pos(nd)
+            # v71: a line-up more than one 30 mm move away (after a long
+            # sprint straight) measures and moves again; smaller ones move once
+            # (repeating those pushed into a blocked spot in emulation)
+            k = 0
+            while k < 2 and self.align_pos(nd) > 30.0 and POS_MODEL:
+                k += 1
             return
         d = self.d
         n = 0
@@ -1481,8 +1511,7 @@ class Mouse:
         self.front_turn = 0
         if f < FRONT_NEAR:
             e = c + FRONT_CENTER - f - self.along(d)
-            if fabs(e) < 60.0:
-                self.odo_learn(e)
+            if fabs(e) < (95.0 if self.sa() > 20.0 else 60.0):     # after a long straight a wall this near is this cell's
                 fx = self.abs_fix(e, self.front_sig(len(vals)))
                 self.front_turn = 1
         elif f < 8190:
@@ -1490,13 +1519,14 @@ class Mouse:
         if self.front_turn and HW_PIVOT_LEARN and k >= 0:
             c -= self.piv[k]            # spins in this direction end this far forward: start that much short
         mv = c - self.along(d)
-        if fabs(mv) > 60.0:
+        if fabs(mv) > 60.0 and not self.front_turn:
             log("align skipped, move", int(mv))     # pose estimate is off: do not drive blind
-            return
+            return 0.0
         if fabs(mv) > HW_ALIGN_TOL:
             self.move_to(d, self.along(d) + clamp(mv, -30.0, 30.0))
-        log("align front", f, "fix", int(fx), "move", int(mv), "sa", int(self.sa()), "piv", int(self.piv[k]) if k >= 0 else 0, "tpm", int(1000 * TPMM),
+        log("align front", f, "fix", int(fx), "move", int(mv), "sa", int(self.sa()), "piv", int(self.piv[k]) if k >= 0 else 0,
             "ms", self.now() - t0)
+        return fabs(mv) if self.front_turn else 0.0
 
     # Gyro bias from samples taken with BOTH wheels dead still (a turn that
     # is still unwinding has zero forward motion but is still rotating).
@@ -1624,23 +1654,6 @@ class Mouse:
     # along-track position. Without it the start-up wheel slip of every
     # cell adds up along open corridors, and the next 90 deg turn turns
     # that along error into a sideways one (into a post).
-    # v70 board: a still front-wall fix says how far the odometry was off over
-    # the distance driven since the last one. v68 logs: 59 of 60 front fixes were
-    # negative - it always arrived short, -7 mm per cell, -23 after sprint
-    # straights: the wheels count ~3-5% more than the real distance (ticks
-    # per mm, or slip on this floor). Learn that scale, within +-8%.
-    def odo_learn(self, e):
-        global TPMM
-        D = self.odf
-        self.odf = 0.0
-        if not HW_ODO_LEARN or IS_SIM or D < 150.0 or fabs(e) > 50.0:
-            return
-        # only the still reading: the corrections on the way in carry the
-        # ToF lag and made it over-learn by 5-8% in emulation
-        r = clamp(-e / D, -0.05, 0.05)          # + = the wheels over-count
-        b = HW_TICKS_PER_M / 1000.0
-        TPMM = clamp(TPMM * (1.0 + 0.4 * r), 0.94 * b, 1.06 * b)
-
     def stop_fix(self):
         f = self.fmed
         if not STOP_FIX or not self.fmed_ok or f > 500:
@@ -1653,7 +1666,6 @@ class Mouse:
             e = self.cell_along(self.cx, self.cy, d) + FRONT_CENTER - f - self.along(d)
             if fabs(e) > 60.0:
                 return 0
-            self.odo_learn(e)
             return int(self.abs_fix(e, self.front_sig(len(self.fvals))))
         return 0
 
@@ -2376,7 +2388,7 @@ class Mouse:
         self.p11 = p * m2 / (p + m2)
         a = self.along(d)
         c = 0.0
-        if okl and okr and self.sl_d == d and 120.0 < fabs(a - self.sl_a) < 650.0:
+        if okl and okr and self.sl_d == d and 120.0 < fabs(a - self.sl_a) < 1100.0:
             c = clamp(0.5 * (self.kfl + e) / fabs(a - self.sl_a), -0.07, 0.07)
             self.th += c / D2R
         if fabs(z) > 5.0:
@@ -3298,6 +3310,11 @@ def _mission():
                 wl, wf, wr = m.still_walls(SENSE_STEPS, 0)      # sense again where it really is
             wl, wr = m.side_check(wl, wr, wf)
             record_cell(solver, m.cx, m.cy, m.d, wl, wf, wr)
+            vl, nl, vr, nr = m.vote
+            if wl and 100 * vl < 85 * nl:
+                solver.weak.append((m.cx, m.cy, (m.d + 1) & 3))
+            if wr and 100 * vr < 85 * nr:
+                solver.weak.append((m.cx, m.cy, (m.d + 3) & 3))
             if EDGE_FIX:
                 m.edge_confirm()
             fx = m.stop_fix()
@@ -3312,6 +3329,9 @@ def _mission():
             nd = -2
         else:
             nd = solver.next_dir(m.cx, m.cy, m.d)
+            if nd < 0 and solver.room is None and solver.unweak():
+                log("no room yet - re-checking doubtful walls")
+                nd = solver.next_dir(m.cx, m.cy, m.d)
         log("at", m.cx, m.cy, "d", m.d, "next", nd, "t", (m.now() - m.t0) / 1000.0)
         if m.efl + m.efr != m.ef_log:
             # steps whose encoder count went the wrong way (undone with the gyro)
