@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v71g LEFTOFF 31-Oct"
+BUILD = "v71h CENTRE 31-Oct"
 
 try:
     import math
@@ -60,7 +60,7 @@ HW_ENC_POL_L      = 1           # clean MicroPython (diag66): left counts + forw
 HW_ENC_POL_R      = 1
 HW_LEFT_ENC_OFF   = 1           # v71f: never use the left encoder: its travel always from the right wheel + gyro (it failed 3 ways in 4 days)
 HW_LREV_SUB       = 1           # v71d: left wheel commanded backwards: its travel from the right wheel + gyro (spincheck: the left encoder loses most counts backwards)
-HW_SPIN_TRIM0     = 6.0         # v71d: starting spin trim (spincheck right spins: left ~13% faster than right at equal PWM)
+HW_SPIN_TRIM0     = 8.0         # v71h: spincheck - left wheel ~20-25% stronger: the right needs ~+8 to match in spins (+6 left every turn 9-24 mm left)
 HW_ENC_FIX        = 1           # v65: undo wrong-way encoder counts with the gyro (v64: left encoder counted one way only)
 HW_LEFT_DEADBAND  = 20.0        # diag.py sweep 20 Oct: rolling dead-band (61 over-drove every command by ~40 PWM)
 HW_RIGHT_DEADBAND = 15.0        # diag.py sweep: 15.2
@@ -88,7 +88,7 @@ HW_RETURN_STOPS   = 1           # v71: kept ON - continuous returns caused 4 of 
 HW_STOP_LAT       = 1           # v69: at every new-cell stop, set the sideways position from the still side medians and correct the gyro heading from the walls
 HW_KLAT           = 0.010       # rad heading per mm off-centre (0.007 tested worse)
 
-HW_SIDE_OFFSET    = 10.0        # v71g: sidecal after the wires were tied: the left sensor now reads 10 mm more than the right (was -4). The old value held the mouse ~7 mm LEFT
+HW_SIDE_OFFSET    = 2.0         # v71h: sidecal #2 = +2, hand placements after the tie ~+3 (the +10 reading was skewed by spin drift)
 
 HW_STOP_EACH_CELL = 1           # 1 = STABLE: stop on every cell centre and sense walls standing still (v53 finished mazes this way)
 
