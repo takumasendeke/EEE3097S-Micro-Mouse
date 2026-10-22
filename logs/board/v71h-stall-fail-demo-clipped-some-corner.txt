@@ -1,0 +1,41 @@
+S4 BUILD v71h CENTRE 31-Oct
+mem free 29168
+gyro zero -0.08 deg/s spread 0.09
+battery 3.74 V 
+maze 4 x 6 side nom 52.0 start ToF L/C/R 89 257 92 slot counts [1, 0, 1, 0, 1] gyro gain 1.0
+start walls L F R 1 0 1 centred L/R 50.5 48.5
+latfix 1 mm corr 1 g 87 hdg 0 side L/R 49 50 piv ccw/cw 0 0
+encoder check L -95 R 123 ticks counted, L 118 R 123 after the gyro check
+edge L wo e -3 fix -1 new p 18
+maze is on the LEFT of the start heading
+stop lat -1 corr 0 hdg fix 0.0
+cell 1 0 d 0 walls L F R 0 1 1 votes L 0 / 80 F 42 / 42 R 61 / 62 front 45 fix -6 th -2 sa 3 side 0 45
+at 1 0 d 0 next 1 t 5.369
+align front 45 fix -1 move 6 sa 3 piv 0 ms 353
+turn 92 err 0.8 ovs 6.8 ms 1183 tries 2 coast 52 trim 8 8
+latfix 3 mm corr 2 g 80 hdg 0 side L/R 0 51 piv ccw/cw 0 0
+stop lat 13 corr 2 hdg fix 0.0
+cell 1 1 d 1 walls L F R 0 1 1 votes L 0 / 80 F 57 / 57 R 66 / 73 front 44 fix -6 th 88 sa 3 side 0 61
+at 1 1 d 1 next 2 t 12.011
+align front 44 fix 0 move 6 sa 3 piv 0 ms 221
+turn 92 err 0.4 ovs 5.0 ms 1170 tries 2 coast 55 trim 8 8
+latfix 25 mm corr 16 g 79 hdg 0 side L/R 0 73 piv ccw/cw -2 -1
+stop lat 15 corr 2 hdg fix 0.0
+cell 0 1 d 2 walls L F R 1 1 0 votes L 37 / 38 F 41 / 42 R 0 / 80 front 44 fix -8 th 169 sa 3 side 44 0
+at 0 1 d 2 next 1 t 18.392
+align front 44 fix 0 move 7 sa 3 piv -1 ms 861
+turn -88 err -2.5 ovs 0.0 ms 798 tries 1 coast 42 trim 8 8
+latfix 1 mm corr 0 g 79 hdg 2 side L/R 47 0 piv ccw/cw -2 0
+stop lat 8 corr 3 hdg fix 0.0
+cell 0 2 d 1 walls L F R 1 1 0 votes L 28 / 35 F 45 / 46 R 0 / 80 front 41 fix -2 th 86 sa 3 side 45 0
+at 0 2 d 1 next 0 t 25.53
+align front 41 fix 0 move 3 sa 3 piv 0 ms 86
+turn -86 err -1.3 ovs 0.0 ms 858 tries 1 coast 33 trim 8 8
+latfix -11 mm corr -6 g 77 hdg 1 side L/R 61 0 piv ccw/cw -3 -2
+edge R ow e 6 fix 3 map p 18
+side nom 52.8
+stop lat 15 corr 5 hdg fix 4.0
+cell 1 2 d 0 walls L F R 1 0 1 votes L 38 / 41 F 0 / 80 R 61 / 79 front 259 fix 0 th 0 sa 14 side 49 72
+at 1 2 d 0 next 0 t 31.712
+STALL - wheels blocked
+CONTACT - run stopped (any contact fails the demo)
