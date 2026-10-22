@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v71f LEFTOFF 31-Oct"
+BUILD = "v71g LEFTOFF 31-Oct"
 
 try:
     import math
@@ -88,7 +88,7 @@ HW_RETURN_STOPS   = 1           # v71: kept ON - continuous returns caused 4 of 
 HW_STOP_LAT       = 1           # v69: at every new-cell stop, set the sideways position from the still side medians and correct the gyro heading from the walls
 HW_KLAT           = 0.010       # rad heading per mm off-centre (0.007 tested worse)
 
-HW_SIDE_OFFSET    = -4.0        # mm: + shifts the centre line RIGHT by half. v62 left too much room on the left: -4 = 2 mm left. Each 2 = 1 mm
+HW_SIDE_OFFSET    = 10.0        # v71g: sidecal after the wires were tied: the left sensor now reads 10 mm more than the right (was -4). The old value held the mouse ~7 mm LEFT
 
 HW_STOP_EACH_CELL = 1           # 1 = STABLE: stop on every cell centre and sense walls standing still (v53 finished mazes this way)
 
