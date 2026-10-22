@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v71 FINAL 30-Oct"
+BUILD = "v71b FINAL 30-Oct"
 
 try:
     import math
@@ -89,8 +89,8 @@ HW_SIDE_OFFSET    = -4.0        # mm: + shifts the centre line RIGHT by half. v6
 
 HW_STOP_EACH_CELL = 1           # 1 = STABLE: stop on every cell centre and sense walls standing still (v53 finished mazes this way)
 
-HW_SIDE_GUARD_L   = 35.0        # mm: left side reflex (same as the right, as in v53)
-HW_SIDE_GUARD     = 35.0        # mm side reflex (25 let it drift onto the prongs - back to 35)
+HW_SIDE_GUARD_L   = 40.0  # v71b: steer away from the left wall from 40 mm (was 35)
+HW_SIDE_GUARD     = 40.0  # v71b: same on the right
 
 HW_FRONT_STOP     = 30.0        # mm: front reflex - blocked below this + speed * HW_FRONT_REACT (centre reads 37 now)
 HW_FRONT_REACT    = 0.15        # s: ToF latency + braking time, so faster = stop earlier
@@ -146,7 +146,7 @@ HW_ALIGN_TOL      = 3.0         # mm: before a turn, move to the cell centre if 
 HW_ON_CONTACT     = 1           # 1 = any contact (BUMP/STALL/PINNED/SLIP/turn blocked) stops the run; 0 = log it, drive on
 HW_POST_BLANK     = 30.0        # mm: ignore side readings while the side sensor is this close to a cell boundary (posts, wall ends)
 HW_SPIN_MATCH     = 1           # 1 = spin with EQUAL wheel speeds (right motor ~25% weaker: equal PWM shifted the axle left on every turn)
-HW_SPIN_TRIM_MAX  = 20.0        # PWM: limit of the learned spin trim, as v53 (v55 tried 8)
+HW_SPIN_TRIM_MAX  = 35.0  # v71b: 35 (sidecal: the CCW trim hit the old 20 limit in one spin)
 HW_TURN_PWM2      = 48  # v67: correction spins as slow (v66: 52)
 HW_PIVOT_LEARN    = 1           # v66: learn per spin direction where to line up so the axle ENDS on the centre (v65: 3-17 mm left after every left turn)
 HW_PIVOT_MAX      = 6.0         # mm: most it lines up nearer / further from the wall ahead (front corners clear it by ~8 mm)
@@ -156,7 +156,7 @@ HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measure
 HW_FRONT_FIX_MAX  = 150.0       # mm: trust front ToF for distance only below this
 HW_FRONT_SNAP     = 30.0        # mm: front fix only if within this of a wall line
 HW_TOF_SIGMA      = 20.0        # mm side ToF noise (tof_check: spread ~+-20 standing still)
-HW_V_EXPLORE      = 85.0  # v71: a little faster (v70: 75); explore was the solid phase
+HW_V_EXPLORE      = 75.0  # v71b: back to v70's 75 for the demo runs
 HW_V_RETURN       = 90.0  # v67: slower for rigour (v66: 120)
 HW_V_SPRINT       = 130.0  # v71: slower (v70: 160); every v70 failure was in the sprint, still 1.5x explore
 HW_V_TURN         = 170.0       # mm/s through smooth 90 deg arcs
@@ -1246,7 +1246,14 @@ class Mouse:
             ff = DB_R + (p - DB_L) * (VMAX_L / (100.0 - DB_L)) / (VMAX_R / (100.0 - DB_R)) - p
             k = 0 if sg * SIDE > 0 else 1   # v71: one trim per spin direction (a shared one swung -19..+10
             #                                 and CCW spins with it >= 0 ended ~6 mm forward)
-            b = int(clamp(p + ff + self.trim[k], 0.0, 100.0))
+            t = self.trim[k]
+            # v71b: never slow a wheel below the spin PWM (a -20 trim put the
+            # right wheel at ~31 PWM, under its ~42-46 breakaway): a negative
+            # trim speeds the LEFT wheel up instead
+            if t < 0.0:
+                a = int(clamp(p - t, 0.0, 100.0))
+                t = 0.0
+            b = int(clamp(p + ff + t, 0.0, 100.0))
             if sg * SIDE > 0:
                 a = -a
             else:
