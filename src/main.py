@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v71i CENTRE 31-Oct"
+BUILD = "v71j CENTRE 31-Oct"
 
 try:
     import math
@@ -147,7 +147,7 @@ HW_NOM_L          = 0.0         # mm LEFT reading at the TRUE centre, from works
 HW_NOM_R          = 0.0         # mm RIGHT reading at the TRUE centre (set both, or neither)
 HW_TOF_LAG        = 0.02        # s: age of a ToF reading (the mouse has moved speed x lag since)
 HW_ALIGN_TOL      = 3.0         # mm: before a turn, move to the cell centre if further off than this
-HW_ON_CONTACT     = 1           # 1 = any contact (BUMP/STALL/PINNED/SLIP/turn blocked) stops the run; 0 = log it, drive on
+HW_ON_CONTACT     = 0           # v71j: 0 = back off and drive on after a bump (the demo allows recovering); at most 6 per run
 HW_POST_BLANK     = 30.0        # mm: ignore side readings while the side sensor is this close to a cell boundary (posts, wall ends)
 HW_SPIN_MATCH     = 1           # 1 = spin with EQUAL wheel speeds (right motor ~25% weaker: equal PWM shifted the axle left on every turn)
 HW_SPIN_TRIM_MAX  = 12.0  # v71d: 12 (learned only from right spins now; start +6)
@@ -916,6 +916,7 @@ class Mouse:
         self.slip = 0           # steps the wheels and the gyro disagreed on the turn rate
         self.trim = [HW_SPIN_TRIM0, HW_SPIN_TRIM0_CW]  # PWM added to the right wheel in CCW / CW spins
         self.enc_chk = 0        # 1 = check both encoders count on the first drive
+        self.ncontact = 0       # contacts so far (v71j: recover up to 6)
         self.ec0 = None
         self.piv = [0.0, 0.0]   # mm: line up this much short of the centre before a CCW / CW spin at a wall (learned)
         self.piv_k = -1         # which of the two the coming turn uses (-1 = none)
@@ -1358,8 +1359,9 @@ class Mouse:
             tries += 1
         err = target - self.th
         if POS_MODEL and fabs(err) > 45.0:
-            log("TURN FAILED err", int(err))     # wedged or spun away: stop rather than drive off at a random heading
-            self.contact()
+            log("TURN FAILED err", int(err))     # wedged or spun away
+            if HW_ON_CONTACT:
+                self.contact()                  # (recovering: the next straight's HEADING LOST check straightens it)
         if DEBUG:
             log("turn", int(delta), "err", int(10 * err) / 10.0, "ovs", int(10 * ovs) / 10.0,
                 "ms", self.now() - t0, "tries", tries, "coast", int(1000 * self.tcoast),
@@ -1393,12 +1395,15 @@ class Mouse:
     # so stop dead and end it (HW_ON_CONTACT = 1) rather than backing up and
     # carrying on with a doubtful position; HW_ON_CONTACT = 0 just logs it.
     def contact(self):
-        self.bump = 0
         uct_mouse.set_motors(0, 0)
-        if HW_ON_CONTACT:
-            log("CONTACT - run stopped (any contact fails the demo)")
+        self.ncontact += 1
+        if HW_ON_CONTACT or self.ncontact > 6:
+            self.bump = 0
+            log("CONTACT - run stopped")
             raise ContactStop()
-        log("CONTACT - ignored, driving on")
+        # v71j: keep the bump flag so the caller backs off and replans
+        self.bump = 1
+        log("CONTACT", self.ncontact, "- backing off, driving on")
 
     # Climbed / bumped: stop, reverse gently off the obstacle, stop.
     def back_off(self):
@@ -2393,6 +2398,12 @@ class Mouse:
             return
         okl = self.sLm and self.sLn >= 15 and fabs(self.sLm - NOM_L) < 25.0
         okr = self.sRm and self.sRn >= 15 and fabs(self.sRm - NOM_R) < 25.0
+        if okl and okr and fabs(self.sLm + self.sRm - NOM_L - NOM_R) > 12.0:
+            # v71j: the two walls do not add up to a corridor (both demos at
+            # 1 2: L+R 121 and 145 against ~104) - the beams saw wall ends or
+            # posts. Trust nothing here (they "fixed" the heading 3-4 deg wrong)
+            log("stop lat skipped - side readings", self.sLm, self.sRm)
+            return
         d = self.d
         psi = wrap180(self.th - 90.0 * d) * D2R
         hc = SIDE_X * _sin(psi)
@@ -2417,7 +2428,7 @@ class Mouse:
         a = self.along(d)
         c = 0.0
         if okl and okr and self.sl_d == d and 120.0 < fabs(a - self.sl_a) < 1100.0:
-            c = clamp(0.5 * (self.kfl + e) / fabs(a - self.sl_a), -0.07, 0.07)
+            c = clamp(0.5 * (self.kfl + e) / fabs(a - self.sl_a), -0.044, 0.044)    # v71j: at most 2.5 deg per stop
             self.th += c / D2R
         if fabs(z) > 5.0:
             self.boost_to = a + 150.0
@@ -2450,6 +2461,11 @@ class Mouse:
         # roughly centred mouse (one noisy side once read 84 mm -> fake 40 mm)
         okl = self.sLm and fabs(self.sLm - NOM_L) < 25.0
         okr = self.sRm and fabs(self.sRm - NOM_R) < 25.0
+        if okl and okr and fabs(self.sLm + self.sRm - NOM_L - NOM_R) > 12.0:
+            if fabs(self.sLm - NOM_L) <= fabs(self.sRm - NOM_R):     # v71j: not a clean corridor: the nearer-to-normal side only
+                okr = 0
+            else:
+                okl = 0
         if POS_MODEL:
             # weighted by the noise: a median of n side readings (+-24 mm
             # each) is good to 30/sqrt(n) mm; one wall alone also carries the
@@ -3125,7 +3141,7 @@ class Mouse:
         sl.sort()
         sr.sort()
         m = 0.5 * (sl[len(sl) // 2] + sr[len(sr) // 2])
-        if fabs(m - SIDE_NOM) < 20.0:
+        if fabs(m - SIDE_NOM) < 6.0:      # v71j: was 20 - a bad pair at 1 2 (L 66 R 79) moved it 52 -> 61
             SIDE_NOM = m if self.nom_n == 0 else SIDE_NOM + 0.3 * (m - SIDE_NOM)
             self.nom_n += 1
             NOM_L = SIDE_NOM + 0.5 * SIDE_OFFSET * SIDE     # SIDE < 0: map L/R swapped
