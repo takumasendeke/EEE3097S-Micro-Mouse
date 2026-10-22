@@ -1,0 +1,47 @@
+S4 BUILD v71f LEFTOFF 31-Oct
+mem free 29168
+gyro zero -0.47 deg/s spread 0.06
+battery 3.7 V 
+maze 4 x 6 side nom 52.0 start ToF L/C/R 108 493 8190 slot counts [1, 0, 1, 0, 0] gyro gain 1.0
+start walls L F R 1 0 1 centred L/R 46.5 50.5
+latfix -8 mm corr -7 g 86 hdg 0 side L/R 55 42 piv ccw/cw 0 0
+encoder check L 29 R 123 ticks counted, L 56 R 123 after the gyro check
+edge L wo e 0 fix 0 new p 18
+maze is on the LEFT of the start heading
+stop lat 8 corr 1 hdg fix 0.0
+cell 1 0 d 0 walls L F R 0 0 1 votes L 0 / 80 F 0 / 80 R 65 / 70 front 409 fix 0 th -2 sa 14 side 0 57
+at 1 0 d 0 next 0 t 5.7
+edge L ow e 5 fix 3 new p 18
+side nom 50.0
+stop lat 0 corr -2 hdg fix 0.2
+cell 2 0 d 0 walls L F R 1 0 1 votes L 47 / 47 F 0 / 80 R 64 / 74 front 225 fix 0 th 0 sa 16 side 52 55
+at 2 0 d 0 next 0 t 10.094
+side nom 52.1
+stop lat 3 corr 0 hdg fix 1.2
+cell 3 0 d 0 walls L F R 1 1 1 votes L 46 / 46 F 59 / 60 R 63 / 77 front 53 fix -11 th 4 sa 3 side 49 65
+at 3 0 d 0 next 2 t 14.445
+align front 53 fix -1 move 14 sa 3 piv 0 ms 571
+turn 176 err 1.5 ovs 0.0 ms 1421 tries 1 coast 39 trim 6 6
+latfix 0 mm corr 3 g 92 hdg -2 side L/R 59 59 piv ccw/cw 0 0
+pass 2 0
+seen 1 0 d 2 front 211 fix 0 th 181 sa 25
+at 1 0 d 2 next 1 t 24.46
+align front 211 fix 0 move -4 sa 26 piv 0 ms 486
+turn -92 err -0.9 ovs 4.7 ms 1220 tries 2 coast 42 trim 6 6
+edge R ow e 11 fix 5 new p 18
+front 137 - between cells: creeping to the wall
+re-centred in 1 1 front 60
+edge undo 5
+stop lat 5 corr -1 hdg fix 0.0
+cell 1 1 d 1 walls L F R 1 1 0 votes L 31 / 31 F 60 / 65 R 11 / 80 front 58 fix 3 th 92 sa 3 side 42 87
+at 1 1 d 1 next 0 t 34.031
+align front 58 fix 0 move 21 sa 3 piv 0 ms 585
+turn -96 err -2.5 ovs 0.0 ms 1283 tries 1 coast 26 trim 6 6
+FRONT CHECK: wall ahead after turn, next -1
+no room found
+return [3, 2]
+align front 61 fix -11 move 19 sa 4 piv 0 ms 929
+turn -87 err 2.7 ovs 2.7 ms 874 tries 1 coast 33 trim 6 6
+latfix -9 mm corr 0 g 76 hdg -3 side L/R 63 0 piv ccw/cw 0 -1
+TILT - a wheel is riding up a wall
+CONTACT - run stopped (any contact fails the demo)
