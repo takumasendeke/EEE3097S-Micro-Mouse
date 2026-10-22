@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v71e FINAL 30-Oct"
+BUILD = "v71f LEFTOFF 31-Oct"
 
 try:
     import math
@@ -58,6 +58,7 @@ HW_MOTOR_POL_L    = 1             # flipped for the Oct-2026 MicroPython firmwar
 HW_MOTOR_POL_R    = 1
 HW_ENC_POL_L      = 1           # clean MicroPython (diag66): left counts + forwards. The first drive still checks it
 HW_ENC_POL_R      = 1
+HW_LEFT_ENC_OFF   = 1           # v71f: never use the left encoder: its travel always from the right wheel + gyro (it failed 3 ways in 4 days)
 HW_LREV_SUB       = 1           # v71d: left wheel commanded backwards: its travel from the right wheel + gyro (spincheck: the left encoder loses most counts backwards)
 HW_SPIN_TRIM0     = 6.0         # v71d: starting spin trim (spincheck right spins: left ~13% faster than right at equal PWM)
 HW_ENC_FIX        = 1           # v65: undo wrong-way encoder counts with the gyro (v64: left encoder counted one way only)
@@ -958,7 +959,9 @@ class Mouse:
             yt = (g + self.rate_p) * D2R * dt * HALF_AXLE * TPMM      # yaw this step, in ticks
             e0 = fabs(tr - tl - yt)
             sz = fabs(tl) + fabs(tr)
-            if HW_LREV_SUB and self.pl_last < 0:
+            if HW_LEFT_ENC_OFF:
+                tl = tr - yt                    # v71f: left encoder not used at all
+            elif HW_LREV_SUB and self.pl_last < 0:
                 # v71d: spincheck in the air: left backwards -185/-120/-56
                 # ticks at PWM 40/60/80 (right -439/-700/-873, left forwards
                 # 584/826/1010). Its count is useless running backwards: take
@@ -1272,7 +1275,7 @@ class Mouse:
             self.wait_period()
             self.sense()
             e = fabs(self.vlw) - fabs(self.vrw)         # > 0: left faster
-            if learn and k == 1 and fabs(self.vlw) > 60.0:
+            if learn and k == 1 and fabs(self.vlw) > 60.0 and not HW_LEFT_ENC_OFF:
                 # v71d: only right spins (left wheel forwards: both encoders
                 # valid); the left spin uses the same trim
                 self.trim[1] = clamp(self.trim[1] + 0.004 * e, -HW_SPIN_TRIM_MAX, HW_SPIN_TRIM_MAX)
@@ -1839,7 +1842,7 @@ class Mouse:
         ql = self.rwl - self.ec0[2]     # as counted
         qr = self.rwr - self.ec0[3]
         log("encoder check L", int(ql), "R", int(qr), "ticks counted, L", int(dl), "R", int(dr), "after the gyro check")
-        if abs(ql) < 10:
+        if abs(ql) < 10 and not HW_LEFT_ENC_OFF:
             uct_mouse.set_motors(0, 0)
             log("LEFT ENCODER NOT COUNTING - reseat its cable, charge the battery")
             raise RuntimeError("ENC L DEAD")
@@ -1847,7 +1850,7 @@ class Mouse:
             uct_mouse.set_motors(0, 0)
             log("RIGHT ENCODER NOT COUNTING - reseat its cable, charge the battery")
             raise RuntimeError("ENC R DEAD")
-        if ql * dl < 0:
+        if ql * dl < 0 and not HW_LEFT_ENC_OFF:
             ENC_POL_L = -ENC_POL_L
             self.rwl = -self.rwl
             log("LEFT encoder counts backwards - reversed (position unaffected)")
