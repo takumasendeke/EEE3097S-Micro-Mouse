@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v71c FINAL 30-Oct"
+BUILD = "v71d FINAL 30-Oct"
 
 try:
     import math
@@ -58,6 +58,8 @@ HW_MOTOR_POL_L    = 1             # flipped for the Oct-2026 MicroPython firmwar
 HW_MOTOR_POL_R    = 1
 HW_ENC_POL_L      = 1           # clean MicroPython (diag66): left counts + forwards. The first drive still checks it
 HW_ENC_POL_R      = 1
+HW_LREV_SUB       = 1           # v71d: left wheel commanded backwards: its travel from the right wheel + gyro (spincheck: the left encoder loses most counts backwards)
+HW_SPIN_TRIM0     = 6.0         # v71d: starting spin trim (spincheck right spins: left ~13% faster than right at equal PWM)
 HW_ENC_FIX        = 1           # v65: undo wrong-way encoder counts with the gyro (v64: left encoder counted one way only)
 HW_LEFT_DEADBAND  = 20.0        # diag.py sweep 20 Oct: rolling dead-band (61 over-drove every command by ~40 PWM)
 HW_RIGHT_DEADBAND = 15.0        # diag.py sweep: 15.2
@@ -146,7 +148,7 @@ HW_ALIGN_TOL      = 3.0         # mm: before a turn, move to the cell centre if 
 HW_ON_CONTACT     = 1           # 1 = any contact (BUMP/STALL/PINNED/SLIP/turn blocked) stops the run; 0 = log it, drive on
 HW_POST_BLANK     = 30.0        # mm: ignore side readings while the side sensor is this close to a cell boundary (posts, wall ends)
 HW_SPIN_MATCH     = 1           # 1 = spin with EQUAL wheel speeds (right motor ~25% weaker: equal PWM shifted the axle left on every turn)
-HW_SPIN_TRIM_MAX  = 8.0   # v71c: 8. Larger trims were learned from a miscounting left encoder and pushed every left turn 12-17 mm left; turns with |trim| < 8 ended within ~2 mm
+HW_SPIN_TRIM_MAX  = 12.0  # v71d: 12 (learned only from right spins now; start +6)
 HW_TURN_PWM2      = 48  # v67: correction spins as slow (v66: 52)
 HW_PIVOT_LEARN    = 1           # v66: learn per spin direction where to line up so the axle ENDS on the centre (v65: 3-17 mm left after every left turn)
 HW_PIVOT_MAX      = 6.0         # mm: most it lines up nearer / further from the wall ahead (front corners clear it by ~8 mm)
@@ -910,7 +912,7 @@ class Mouse:
         self.nom_log = 0.0
         self.pin = 0            # steps driven with the heading stuck far off (corner caught on a post)
         self.slip = 0           # steps the wheels and the gyro disagreed on the turn rate
-        self.trim = [0.0, 0.0]  # PWM added to the right wheel in CCW / CW spins (learned: equal wheel speeds)
+        self.trim = [HW_SPIN_TRIM0, HW_SPIN_TRIM0]  # PWM added to the right wheel in CCW / CW spins (learned: equal wheel speeds)
         self.enc_chk = 0        # 1 = check both encoders count on the first drive
         self.ec0 = None
         self.piv = [0.0, 0.0]   # mm: line up this much short of the centre before a CCW / CW spin at a wall (learned)
@@ -956,7 +958,13 @@ class Mouse:
             yt = (g + self.rate_p) * D2R * dt * HALF_AXLE * TPMM      # yaw this step, in ticks
             e0 = fabs(tr - tl - yt)
             sz = fabs(tl) + fabs(tr)
-            if e0 > 1.5 + 0.2 * sz:
+            if HW_LREV_SUB and self.pl_last < 0:
+                # v71d: spincheck in the air: left backwards -185/-120/-56
+                # ticks at PWM 40/60/80 (right -439/-700/-873, left forwards
+                # 584/826/1010). Its count is useless running backwards: take
+                # the right wheel's and the gyro's word for it
+                tl = tr - yt
+            elif e0 > 1.5 + 0.2 * sz:
                 e1 = fabs(tr + tl - yt)         # left reversed
                 e2 = fabs(tr + tl + yt)         # right reversed
                 f = 0
@@ -1264,8 +1272,11 @@ class Mouse:
             self.wait_period()
             self.sense()
             e = fabs(self.vlw) - fabs(self.vrw)         # > 0: left faster
-            if learn and fabs(self.vlw) > 60.0:
-                self.trim[k] = clamp(self.trim[k] + 0.004 * e, -HW_SPIN_TRIM_MAX, HW_SPIN_TRIM_MAX)    # v71c: slower (it ran away -6 -> -35)
+            if learn and k == 1 and fabs(self.vlw) > 60.0:
+                # v71d: only right spins (left wheel forwards: both encoders
+                # valid); the left spin uses the same trim
+                self.trim[1] = clamp(self.trim[1] + 0.004 * e, -HW_SPIN_TRIM_MAX, HW_SPIN_TRIM_MAX)
+                self.trim[0] = self.trim[1]
             return
         q = int(p) if sg * SIDE > 0 else -int(p)
         uct_mouse.set_motors(-q, q)
