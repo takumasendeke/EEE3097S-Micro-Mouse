@@ -1,0 +1,86 @@
+S4 BUILD v71b FINAL 30-Oct
+mem free 29264
+gyro zero -1.19 deg/s spread 0.08
+battery 3.85 V 
+maze 4 x 6 side nom 52.0 start ToF L/C/R 65 169 41 slot counts [1, 0, 1, 0, 1] gyro gain 1.0
+start walls L F R 1 0 1 centred L/R 52.5 56.5
+latfix -2 mm corr -2 g 87 hdg 0 side L/R 55 54 piv ccw/cw 0 0
+encoder check L 129 R 159 ticks counted, L 129 R 159 after the gyro check
+side nom 53.4
+stop lat 3 corr 2 hdg fix 0.2
+cell 1 0 d 0 walls L F R 1 0 1 votes L 64 / 72 F 0 / 79 R 66 / 66 front 389 fix 0 th -7 sa 25 side 52 50
+at 1 0 d 0 next 0 t 5.602
+enc wrong-way steps L 0 R 2
+side nom 50.6
+stop lat -8 corr -1 hdg fix -1.8
+cell 2 0 d 0 walls L F R 1 0 1 votes L 56 / 60 F 0 / 80 R 59 / 60 front 218 fix 0 th 3 sa 35 side 46 42
+at 2 0 d 0 next 0 t 9.942
+enc wrong-way steps L 1 R 2
+edge L wo e 10 fix 9 new p 18
+maze is on the LEFT of the start heading
+stop lat -2 corr 0 hdg fix 0.0
+cell 3 0 d 0 walls L F R 0 1 1 votes L 0 / 63 F 46 / 46 R 66 / 69 front 46 fix -7 th 3 sa 3 side 0 53
+at 3 0 d 0 next 1 t 13.959
+align front 46 fix -1 move 7 sa 3 piv 0 ms 389
+turn 92 err -0.3 ovs 0.3 ms 867 tries 1 coast 43 trim -6 0
+latfix -1 mm corr 2 g 78 hdg 0 side L/R 0 51 piv ccw/cw 0 0
+stop lat 1 corr 0 hdg fix 0.0
+cell 3 1 d 1 walls L F R 0 0 1 votes L 1 / 66 F 0 / 80 R 67 / 78 front 412 fix 0 th 100 sa 16 side 0 63
+at 3 1 d 1 next 1 t 20.813
+stop lat -7 corr -1 hdg fix 0.0
+cell 3 2 d 1 walls L F R 1 0 0 votes L 65 / 73 F 0 / 80 R 0 / 76 front 248 fix 0 th 85 sa 27 side 60 0
+at 3 2 d 1 next 1 t 25.179
+enc wrong-way steps L 2 R 2
+edge R ow e -23 fix -20 new p 18
+stop lat -4 corr -1 hdg fix 0.0
+cell 3 3 d 1 walls L F R 0 1 1 votes L 0 / 79 F 37 / 37 R 55 / 56 front 43 fix -8 th 86 sa 3 side 0 45
+at 3 3 d 1 next 2 t 29.651
+enc wrong-way steps L 3 R 2
+align front 43 fix -1 move 4 sa 3 piv 0 ms 324
+turn 92 err 0.1 ovs 0.0 ms 743 tries 1 coast 41 trim -15 0
+latfix -1 mm corr 7 g 79 hdg 0 side L/R 0 51 piv ccw/cw 0 0
+stop lat -4 corr 0 hdg fix 0.0
+cell 2 3 d 2 walls L F R 0 1 1 votes L 0 / 79 F 49 / 51 R 65 / 71 front 42 fix -6 th 186 sa 3 side 0 54
+at 2 3 d 2 next 3 t 35.801
+enc wrong-way steps L 3 R 3
+align front 42 fix -1 move 2 sa 3 piv 0 ms 7
+turn 83 err -1.1 ovs 4.7 ms 1368 tries 3 coast 64 trim -22 0
+latfix 12 mm corr 12 g 80 hdg 1 side L/R 0 66 piv ccw/cw -1 0
+stop lat 1 corr 0 hdg fix 0.0
+cell 2 2 d 3 walls L F R 1 0 0 votes L 66 / 76 F 0 / 80 R 0 / 80 front 245 fix 0 th 261 sa 16 side 55 0
+at 2 2 d 3 next 3 t 42.196
+enc wrong-way steps L 6 R 3
+edge L wo e -22 fix -9 map p 18
+cell 2 1 d 3 walls L F R 0 1 0 votes L 0 / 80 F 50 / 52 R 0 / 78 front 50 fix -2 th 272 sa 3 side 0 0
+at 2 1 d 3 next 2 t 46.755
+enc wrong-way steps L 7 R 3
+align front 50 fix 0 move 12 sa 3 piv 0 ms 573
+turn -85 err -3.9 ovs 4.8 ms 1267 tries 3 coast 53 trim -22 5
+latfix -5 mm corr -12 g 79 hdg 3 side L/R 51 0 piv ccw/cw -1 -1
+stop lat -14 corr -5 hdg fix -2.9
+cell 1 1 d 2 walls L F R 1 0 1 votes L 62 / 70 F 0 / 80 R 48 / 49 front 210 fix 0 th 181 sa 25 side 58 40
+at 1 1 d 2 next 2 t 53.582
+enc wrong-way steps L 9 R 3
+stop lat -7 corr -4 hdg fix -1.4
+cell 0 1 d 2 walls L F R 1 1 1 votes L 66 / 67 F 36 / 36 R 63 / 66 front 41 fix -6 th 181 sa 3 side 54 49
+at 0 1 d 2 next 0 t 57.602
+enc wrong-way steps L 9 R 4
+align front 41 fix -1 move 2 sa 3 piv 0 ms 5
+turn 176 err -0.9 ovs 14.7 ms 1764 tries 2 coast 51 trim -32 5
+latfix 6 mm corr 0 g 91 hdg 0 side L/R 50 68 piv ccw/cw -1 -1
+pass 1 1
+edge L wo e 0 fix 0 map p 18
+seen 2 1 d 0 front 222 fix 0 th 346 sa 15
+at 2 1 d 0 next 1 t 66.831
+enc wrong-way steps L 17 R 9
+align front 222 fix 0 move -7 sa 15 piv -1 ms 748
+turn 74 err 2.4 ovs 8.5 ms 1093 tries 2 coast 84 trim -35 5
+edge R ow e -32 fix -18 map p 12
+seen 2 2 d 1 front 250 fix 0 th 441 sa 14
+at 2 2 d 1 next 2 t 73.388
+enc wrong-way steps L 26 R 10
+align front 250 fix 0 move -2 sa 14 piv -1 ms 5
+turn 98 err -2.9 ovs 2.9 ms 1051 tries 2 coast 55 trim -35 5
+SLIP - wheels -66 gyro 0 deg/s  L 124 R 0 mm/s
+RIGHT ENCODER stopped counting while driving (cable / battery?)
+CONTACT - run stopped (any contact fails the demo)
