@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v71d FINAL 30-Oct"
+BUILD = "v71e FINAL 30-Oct"
 
 try:
     import math
@@ -151,7 +151,7 @@ HW_SPIN_MATCH     = 1           # 1 = spin with EQUAL wheel speeds (right motor 
 HW_SPIN_TRIM_MAX  = 12.0  # v71d: 12 (learned only from right spins now; start +6)
 HW_TURN_PWM2      = 48  # v67: correction spins as slow (v66: 52)
 HW_PIVOT_LEARN    = 1           # v66: learn per spin direction where to line up so the axle ENDS on the centre (v65: 3-17 mm left after every left turn)
-HW_PIVOT_MAX      = 6.0         # mm: most it lines up nearer / further from the wall ahead (front corners clear it by ~8 mm)
+HW_PIVOT_MAX      = 4.0           # v71e: 4 (a -6 line-up put a right spin ~5 mm past the centre before a sprint crash)
 HW_PSI_TURN       = 0.105       # rad (~6 deg): max recentring steer for the first 150 mm after a turn (off tested worse)
 HW_TILT_LIM       = 0.25        # climb detector: accel tilt as a fraction of g (0 = off)
 HW_SIDE_WALL      = 100.0       # mm: walls read 20-70, open sides 140+ (measured)
@@ -1540,6 +1540,8 @@ class Mouse:
         if fabs(mv) > 60.0 and not self.front_turn:
             log("align skipped, move", int(mv))     # pose estimate is off: do not drive blind
             return 0.0
+        if not self.front_turn:
+            mv = clamp(mv, -15.0, 15.0)     # v71e: no wall close ahead: never move far on the estimate alone
         if fabs(mv) > HW_ALIGN_TOL:
             self.move_to(d, self.along(d) + clamp(mv, -30.0, 30.0))
         log("align front", f, "fix", int(fx), "move", int(mv), "sa", int(self.sa()), "piv", int(self.piv[k]) if k >= 0 else 0,
@@ -2067,7 +2069,10 @@ class Mouse:
         e = bw - FRONT_OFF - (f + 0.1 * (f - FRONT_CENTER)) - self.along(self.d)
         if fabs(e) > 150.0:
             return 0
-        c = self.abs_fix(e, 20.0)
+        # v71e: at most 30 mm, weighted lightly (v71d: a 269 reading - long,
+        # not short - moved the estimate -52 mm and the line-up drove 41 mm
+        # into a corner)
+        c = self.abs_fix(clamp(e, -30.0, 30.0), 25.0)
         log("far fix", int(c), "front", f)
         return int(c)
 
