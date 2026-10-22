@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v71h CENTRE 31-Oct"
+BUILD = "v71i CENTRE 31-Oct"
 
 try:
     import math
@@ -60,6 +60,7 @@ HW_ENC_POL_L      = 1           # clean MicroPython (diag66): left counts + forw
 HW_ENC_POL_R      = 1
 HW_LEFT_ENC_OFF   = 1           # v71f: never use the left encoder: its travel always from the right wheel + gyro (it failed 3 ways in 4 days)
 HW_LREV_SUB       = 1           # v71d: left wheel commanded backwards: its travel from the right wheel + gyro (spincheck: the left encoder loses most counts backwards)
+HW_SPIN_TRIM0_CW  = 5.0         # v71i: right spins (right wheel backwards is the faster one: demo right turns came out -11)
 HW_SPIN_TRIM0     = 8.0         # v71h: spincheck - left wheel ~20-25% stronger: the right needs ~+8 to match in spins (+6 left every turn 9-24 mm left)
 HW_ENC_FIX        = 1           # v65: undo wrong-way encoder counts with the gyro (v64: left encoder counted one way only)
 HW_LEFT_DEADBAND  = 20.0        # diag.py sweep 20 Oct: rolling dead-band (61 over-drove every command by ~40 PWM)
@@ -913,7 +914,7 @@ class Mouse:
         self.nom_log = 0.0
         self.pin = 0            # steps driven with the heading stuck far off (corner caught on a post)
         self.slip = 0           # steps the wheels and the gyro disagreed on the turn rate
-        self.trim = [HW_SPIN_TRIM0, HW_SPIN_TRIM0]  # PWM added to the right wheel in CCW / CW spins (learned: equal wheel speeds)
+        self.trim = [HW_SPIN_TRIM0, HW_SPIN_TRIM0_CW]  # PWM added to the right wheel in CCW / CW spins
         self.enc_chk = 0        # 1 = check both encoders count on the first drive
         self.ec0 = None
         self.piv = [0.0, 0.0]   # mm: line up this much short of the centre before a CCW / CW spin at a wall (learned)
@@ -961,6 +962,8 @@ class Mouse:
             sz = fabs(tl) + fabs(tr)
             if HW_LEFT_ENC_OFF:
                 tl = tr - yt                    # v71f: left encoder not used at all
+                if tr == 0 and self.pl_last == 0 and self.pr_last == 0:
+                    tl = 0                      # v71i: standing still (else the gyro zero error made it creep)
             elif HW_LREV_SUB and self.pl_last < 0:
                 # v71d: spincheck in the air: left backwards -185/-120/-56
                 # ticks at PWM 40/60/80 (right -439/-700/-873, left forwards
@@ -1566,16 +1569,16 @@ class Mouse:
         vals = []
         gs = 0.0
         gn = 0
-        pel = self.el
-        per = self.er
+        pel = self.rwl
+        per = self.rwr
         n = 0
         while n < steps:
             self.step(0.0, 0.0)
-            if n >= 6 and self.el == pel and self.er == per:
+            if n >= 6 and self.rwl == pel and self.rwr == per:     # v71i: raw readings (the left count is computed from the gyro now)
                 gs += self.rate_p
                 gn += 1
-            pel = self.el
-            per = self.er
+            pel = self.rwl
+            per = self.rwr
             if self.dC < 8190:
                 vals.append(self.dC)
             n += 1
@@ -3051,16 +3054,16 @@ class Mouse:
         sc = []
         gs = 0.0
         gn = 0
-        pel = self.el
-        per = self.er
+        pel = self.rwl
+        per = self.rwr
         n = 0
         while n < steps:
             self.step(0.0, 0.0)
-            if n >= 6 and self.el == pel and self.er == per:
+            if n >= 6 and self.rwl == pel and self.rwr == per:     # v71i: raw readings (the left count is computed from the gyro now)
                 gs += self.rate_p       # wheels dead still: the gyro should read zero
                 gn += 1
-            pel = self.el
-            per = self.er
+            pel = self.rwl
+            per = self.rwr
             if self.dL < 8190:
                 nl += 1
                 if self.dL < SIDE_WALL:
