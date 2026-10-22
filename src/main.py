@@ -26,7 +26,7 @@
 # =========================================================================
 import uct_mouse
 
-BUILD = "v71b FINAL 30-Oct"
+BUILD = "v71c FINAL 30-Oct"
 
 try:
     import math
@@ -146,7 +146,7 @@ HW_ALIGN_TOL      = 3.0         # mm: before a turn, move to the cell centre if 
 HW_ON_CONTACT     = 1           # 1 = any contact (BUMP/STALL/PINNED/SLIP/turn blocked) stops the run; 0 = log it, drive on
 HW_POST_BLANK     = 30.0        # mm: ignore side readings while the side sensor is this close to a cell boundary (posts, wall ends)
 HW_SPIN_MATCH     = 1           # 1 = spin with EQUAL wheel speeds (right motor ~25% weaker: equal PWM shifted the axle left on every turn)
-HW_SPIN_TRIM_MAX  = 35.0  # v71b: 35 (sidecal: the CCW trim hit the old 20 limit in one spin)
+HW_SPIN_TRIM_MAX  = 8.0   # v71c: 8. Larger trims were learned from a miscounting left encoder and pushed every left turn 12-17 mm left; turns with |trim| < 8 ended within ~2 mm
 HW_TURN_PWM2      = 48  # v67: correction spins as slow (v66: 52)
 HW_PIVOT_LEARN    = 1           # v66: learn per spin direction where to line up so the axle ENDS on the centre (v65: 3-17 mm left after every left turn)
 HW_PIVOT_MAX      = 6.0         # mm: most it lines up nearer / further from the wall ahead (front corners clear it by ~8 mm)
@@ -1265,7 +1265,7 @@ class Mouse:
             self.sense()
             e = fabs(self.vlw) - fabs(self.vrw)         # > 0: left faster
             if learn and fabs(self.vlw) > 60.0:
-                self.trim[k] = clamp(self.trim[k] + 0.01 * e, -HW_SPIN_TRIM_MAX, HW_SPIN_TRIM_MAX)    # learning rate as v53
+                self.trim[k] = clamp(self.trim[k] + 0.004 * e, -HW_SPIN_TRIM_MAX, HW_SPIN_TRIM_MAX)    # v71c: slower (it ran away -6 -> -35)
             return
         q = int(p) if sg * SIDE > 0 else -int(p)
         uct_mouse.set_motors(-q, q)
@@ -2275,12 +2275,11 @@ class Mouse:
 
     # ---- in-place turn by a heading change (deg, map frame) --------------
     def turn_by(self, delta):
-        if POS_MODEL and fabs(delta) > 135.0:
-            # board, 180s and the pirouette: the axle stays put. Their odometry
-            # creep from unequal wheel speeds is not real: after every 180 in
-            # the v49 and v51 logs the estimate sat 7-10 mm left of what the
-            # side walls showed, and the drive afterwards steered right to
-            # "fix" it. (90s showed no clear bias, so they keep the odometry.)
+        if POS_MODEL:
+            # board: the axle stays put in every spin. Their odometry creep is
+            # not real: after 180s the estimate sat 7-10 mm left (v49/v51), and
+            # v71b: the left encoder under-counts running backwards in left
+            # spins, so 90s got a fake ~20 mm move too (latfix corr 19)
             x = self.X
             y = self.Y
             self.turn_core(delta)
